@@ -1,0 +1,65 @@
+{
+  "id": "5150527",
+  "name": "work",
+  "font_family": "iconfont",
+  "css_prefix_text": "icon-",
+  "description": "",
+  "glyphs": [
+    {
+      "icon_id": "46101763",
+      "name": "199_安全",
+      "font_class": "a-199_anquan",
+      "unicode": "e967",
+      "unicode_decimal": 59751
+    },
+    {
+      "icon_id": "47266383",
+      "name": "align-left-02",
+      "font_class": "align-left-02",
+      "unicode": "e602",
+      "unicode_decimal": 58882
+    },
+    {
+      "icon_id": "47266394",
+      "name": "align-right-02",
+      "font_class": "align-right-02",
+      "unicode": "e603",
+      "unicode_decimal": 58883
+    },
+    {
+      "icon_id": "47368688",
+      "name": "下箭头",
+      "font_class": "xiajiantou",
+      "unicode": "e604",
+      "unicode_decimal": 58884
+    },
+    {
+      "icon_id": "47390666",
+      "name": "Theme Light",
+      "font_class": "a-ThemeLight",
+      "unicode": "e610",
+      "unicode_decimal": 58896
+    },
+    {
+      "icon_id": "47393828",
+      "name": "category",
+      "font_class": "category",
+      "unicode": "e60c",
+      "unicode_decimal": 58892
+    },
+    {
+      "icon_id": "47393830",
+      "name": "arrow_down",
+      "font_class": "arrow_down",
+      "unicode": "e60d",
+      "unicode_decimal": 58893
+    },
+    {
+      "icon_id": "47393834",
+      "name": "search",
+      "font_class": "search",
+      "unicode": "e60e",
+      "unicode_decimal": 58894
+    }
+  ]
+}
