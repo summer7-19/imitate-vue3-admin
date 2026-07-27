@@ -1,5 +1,6 @@
 <script setup>
 import { onMounted, ref } from 'vue'
+import * as d3 from 'd3'
 const list = ref([
     {
         title: '访问量',
@@ -34,16 +35,16 @@ const list = ref([
         userNum: '响应时间120ms'
     }
 ])
-
-/* onMounted(() => {
-    const svgDiv = d3.select('.svgShowData')
+function drawRect(data) {
+    const svgDiv = d3.select('.svg_0')
+    console.log(svgDiv)
     svgDiv.append('svg')
         .attr('width', '100%')
         .attr('height', '100%')
         .attr('viewBox', '0 0 100 100')
     const width=svgDiv.node().clientWidth-20
     const height=svgDiv.node().clientHeight-20
-    function drawRect(data) {
+    
         const XScale = d3.scaleLinear()
             .domain([0, data.chart.num])
             .range([0, width])
@@ -51,7 +52,7 @@ const list = ref([
             .domain([0, data.chart.yNum])
             .range([0, height])
         const xAxis= d3.axisBottom(XScale).tickSize(5)
-        const yAxis= d3.axisLeft(YScale).tickSize(5)
+        const yAxis= d3.axisLeft(yScale).tickSize(5)
         svg.append('g')
             .attr('transform', `translate(10,${height-10})`)
             .call(xAxis)
@@ -65,8 +66,16 @@ const list = ref([
             .attr('width', 10)
             .attr('height', d=>yScale(d.yNum))
             .attr('fill', 'wheelblue')
-    }
+    } 
     function drawLine(data) {
+        const svgDiv = d3.select('.svg_1')
+    console.log(svgDiv)
+    svgDiv.append('svg')
+        .attr('width', '100%')
+        .attr('height', '100%')
+        .attr('viewBox', '0 0 100 100')
+    const width=svgDiv.node().clientWidth-20
+    const height=svgDiv.node().clientHeight-20
         const XScale = d3.scaleLinear()
             .domain([0, data.chart.num])
             .range([0, width])
@@ -89,25 +98,74 @@ const list = ref([
             .attr('y2', d=>YScale(d.yNum))
             .attr('stroke', 'red')
             .attr('stroke-width', 2)
-    }       
-})*/
+    }    
+ onMounted(() => {
+    // drawLine()
+    // drawRect()
+      
+})
 </script>
 <template>
     <div class="svgShowData">
         <ul>
-            <li v-for="value in list">
-                <div class="title">{{ value.title }}</div>
+            <li>
+                <div class="title">{{ list[0].title }}</div>
                 <div class="content">
-                    <div class="left">{{ value.content }}</div>
+                    <div class="left">{{ list[0].content }}</div>
                     <div class="right">
-                        <div class="num">{{ value.num }}</div>
-                        <div class="name">{{ value.name }}</div>
+                        <div class="num">{{ list[0].num }}</div>
+                        <div class="name">{{ list[0].name }}</div>
                     </div>
                 </div>
-                <div class="svg"></div>
+                <div class="svg_0"></div>
                 <div class="bottom">
-                    <div class="left">{{ value.increase }}</div>
-                    <div class="right">{{ value.userNum }}</div>
+                    <div class="left">{{ list[0].increase }}</div>
+                    <div class="right">{{ list[0].userNum }}</div>
+                </div>
+            </li>
+            <li>
+                <div class="title">{{ list[1].title }}</div>
+                <div class="content">
+                    <div class="left">{{ list[1].content }}</div>
+                    <div class="right">
+                        <div class="num">{{ list[1].num }}</div>
+                        <div class="name">{{ list[1].name }}</div>
+                    </div>
+                </div>
+                <div class="svg_1"></div>
+                <div class="bottom">
+                    <div class="left">{{ list[1].increase }}</div>
+                    <div class="right">{{ list[1].userNum }}</div>
+                </div>
+            </li>
+            <li>
+                <div class="title">{{ list[2].title }}</div>
+                <div class="content">
+                    <div class="left">{{ list[2].content }}</div>
+                    <div class="right">
+                        <div class="num">{{ list[2].num }}</div>
+                        <div class="name">{{ list[2].name }}</div>
+                    </div>
+                </div>
+                <div class="svg_2"></div>
+                <div class="bottom">
+                    <div class="left">{{ list[2].increase }}</div>
+                    <div class="right">{{ list[2].userNum }}</div>
+                </div>
+            </li>
+            <li>
+                <div class="title">{{ list[3].title }}</div>
+                <div class="content">
+                    <div class="left">{{ list[3].content }}</div>
+                    <div class="right">
+                        <div class="num">{{ list[3].num }}</div>
+                        <div class="name">{{ list[3].name }}</div>
+                    </div>
+                </div>
+                <div class="svg_3"></div>
+                <div class="bottom">
+                    <div class="left">{{ list[3].increase }}</div>
+                    <div class="right">{{ list[3].userNum }}</div>
                 </div>
             </li>
         </ul>
@@ -188,7 +246,7 @@ const list = ref([
     text-align: right;
 }
 
-.svgShowData ul li .svg {
+.svgShowData ul li [class*="svg_"] {
     height: 55%;
 }
 

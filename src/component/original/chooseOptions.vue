@@ -66,22 +66,22 @@ li {
 }
 
 .options ul li .listDiv .licontent {
-    padding-top: 5%;
+    padding-top: 3%;
     position: absolute;
     top: 10%;
     left: 15%;
     width: 70%;
-    height: 65%;
-    line-height: 1.7;
-    font-size: 18px;
+    height: 70%;
+    line-height: 1.5;
+    font-size: 16px;
     border-bottom: 1px solid #dcdbdb;
 }
 
 
 .options ul li .listDiv .licontent .svgImg {
     margin: 0 auto;
-    width: 40%;
-    height: 45%;
+    width: 36%;
+    height: 42%;
     border-radius: 10px;
 }
 
@@ -90,16 +90,23 @@ li {
 }
 
 .options ul li .listDiv .licontent #descript {
-    font-size: 14px;
-    line-height: 1.2;
+    width: 100%;
+    height: 30%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    font-size: 12px;
+    line-height: 1.5;
     color: #828080;
+    word-break: break-all;
 }
 
 .options ul li .listDiv .left {
     font-size: 14px;
     color: #565454;
     position: absolute;
-    top: 80%;
+    top: 83%;
     left: 5%;
     width: 50%;
 }
@@ -108,7 +115,7 @@ li {
     font-size: 14px;
     color: #565454;
     position: absolute;
-    top: 80%;
+    top: 83%;
     right: -5%;
     width: 50%;
 }

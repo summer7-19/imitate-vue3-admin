@@ -6,7 +6,7 @@
                     :style="{ backgroundColor: index === activeIndex ? 'rgb(44, 113, 169)' : 'transparent' }"
                     @click="jumpRoute(value, index)" @mouseover="index === 2 ? isOn = true : isOn = false" @mouseleave="leaveSide">
                     <div class="pic" v-show="value.pathData">
-                        <svg :viewBox="value.viewBox" width="80%" height="100%">
+                        <svg :viewBox="value.viewBox" width="100%" height="100%">
                             <path fill="#fff" :d="value.pathData"></path>
                         </svg>
                     </div>
@@ -60,6 +60,8 @@
 }
 
 .sideBar .content ul {
+    margin: 0;
+    padding: 0;
     margin-top: 5%;
     width: 100%;
     height: 90%;
@@ -69,7 +71,7 @@
 }
 
 .sideBar .content ul li {
-    margin: 0px 1rem 1rem 0;
+    margin: 0 0.5rem 1.5rem 0;
     flex: 1;
     font-size: 12px;
     display: flex;
@@ -82,22 +84,22 @@
 }
 
 .sideBar .content ul li .pic {
-    margin-left: 5%;
-    margin-top: 2%;
+    margin-left: 15%;
+    margin-top: 1%;
     width: 2rem;
-    height: 65%;
+    height: 90%;
     color: #f7f3f3;
 }
 .sideBar .content ul li .pic svg {
     vertical-align: middle;
 }
 .sideBar .content ul li .right {
-    padding-top: 7%;
+    margin: 6%;
     padding-left: 2rem;
     font-size: 14px;
 }
 .sideBar .content ul li .right.open {
-    padding-top: 2.5%;
+    margin: 2.5%;
 }
 .sideBar .content ul li:first-child {
     pointer-events: none;
@@ -145,10 +147,10 @@
 .openParts {
     position: absolute;
     left: 10%;
-    top: 23%;
+    top: 26%;
 }
 .openParts.isOpen{
-    top: 18.5%;
+    top: 21.5%;
 }
 .openParts button {
     color: #f7f3f3;

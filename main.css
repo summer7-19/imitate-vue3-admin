@@ -5,4 +5,5 @@ html , body,#app{
   height: 100vh;
   overflow: hidden;
   box-sizing: border-box;
+  font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, Roboto, "Noto Sans", Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
 }
