@@ -1,0 +1,214 @@
+.adminPage {
+  flex: 1;
+  min-height: 0;
+  padding: 18px clamp(12px, 2vw, 24px);
+  box-sizing: border-box;
+  overflow-y: auto;
+  background-color: var(--app-surface-plain);
+  scrollbar-width: thin;
+  scrollbar-color: var(--app-text-ghost) transparent;
+}
+
+.adminCard {
+  padding: 18px 20px 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--app-border-quiet);
+  border-radius: 12px;
+  background-color: var(--app-surface);
+  box-shadow:
+    0 1px 2px rgba(47, 58, 74, 0.04),
+    0 12px 26px -20px rgba(47, 58, 74, 0.45);
+}
+
+.adminToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.adminToolbarSpacer {
+  margin-left: auto;
+}
+
+.adminToolbar .el-input,
+.adminToolbar .el-select {
+  width: 200px;
+}
+
+.adminCard .el-table {
+  --el-table-header-bg-color: var(--app-surface-sunken);
+  --el-table-header-text-color: var(--app-text-secondary);
+  --el-table-row-hover-bg-color: var(--app-primary-softer);
+  --el-table-border-color: var(--app-border-light);
+  --el-table-text-color: var(--app-text-body);
+  font-size: 12.5px;
+}
+
+.adminCard .el-table th.el-table__cell {
+  padding: 10px 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.adminCard .el-table td.el-table__cell {
+  padding: 10px 0;
+}
+
+.adminCard .el-table .cell {
+  line-height: 1.5;
+}
+
+.adminCard .el-table .el-button.is-link {
+  padding: 2px;
+  font-size: 12.5px;
+}
+
+.adminRoleTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.adminPager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  padding-top: 14px;
+  color: var(--app-text-soft);
+  font-size: 12px;
+}
+
+.adminHint {
+  margin: 0 0 16px;
+}
+
+.adminMuted {
+  color: var(--app-text-soft);
+  font-size: 12px;
+}
+
+.adminThumb {
+  display: block;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--app-border-light);
+  border-radius: 7px;
+  object-fit: cover;
+  background-color: var(--app-surface-mute);
+}
+
+.adminThumbFallback {
+  display: grid;
+  place-items: center;
+  color: var(--app-primary-strong);
+  font-size: 16px;
+  font-weight: 600;
+  background: linear-gradient(135deg, var(--app-primary-soft), var(--app-surface-mute));
+}
+
+.adminPrice {
+  color: var(--app-text-deep);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.adminStar {
+  font-size: 17px;
+  color: var(--app-text-ghost);
+  cursor: pointer;
+  transition: color 0.16s ease, transform 0.16s ease;
+}
+
+.adminStar:hover {
+  transform: scale(1.12);
+}
+
+.adminStar.is-active {
+  color: #f0b429;
+}
+
+.adminStockLow {
+  color: #e6a23c;
+  font-weight: 600;
+}
+
+.adminStockEmpty {
+  color: #f56c6c;
+  font-weight: 600;
+}
+
+.adminSubCard {
+  padding: 18px 20px;
+  border: 1px solid var(--app-border-quiet);
+  border-radius: 12px;
+  background-color: var(--app-surface);
+}
+
+.adminGridTwo {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.7fr) minmax(0, 1.6fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.adminPage.tablePage {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tablePage .tableCard {
+  flex: 1;
+  min-height: 0;
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tablePage .tableCard .adminToolbar {
+  flex-shrink: 0;
+}
+
+.tablePage .tableWrap {
+  flex: 1;
+  min-height: 0;
+}
+
+.tablePage .tableWrap .el-table {
+  height: 100%;
+}
+
+.tablePage .adminPager {
+  flex-shrink: 0;
+}
+
+@media (max-width: 992px) {
+  .adminGridTwo {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .adminPage {
+    padding: 14px;
+  }
+}
+
+@media (max-width: 768px) {
+  .adminToolbar .el-input,
+  .adminToolbar .el-select {
+    width: 100%;
+  }
+
+  .adminCard {
+    padding: 14px;
+    overflow-x: auto;
+  }
+
+  .adminPager {
+    justify-content: flex-start;
+  }
+}

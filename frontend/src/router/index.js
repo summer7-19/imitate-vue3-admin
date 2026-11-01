@@ -7,19 +7,14 @@ import ShopViteHomePage from '@/component/shopviteChoices/homepage/ShopViteHomeP
 import panel from '@/component/shopviteChoices/homepage/panel.vue'
 import createCenter from '@/component/shopviteChoices/homepage/createCenter.vue'
 import RealTimeMonitor from '@/component/shopviteChoices/homepage/RealTimeMonitor.vue'
-import Tiles from '@/component/shopviteChoices/homepage/Tiles.vue'
 import UpdateLog from '@/views/shopvite/UpdateLog.vue'
 import WorkBench from '@/views/shopvite/WorkBench.vue'
 import DataScreen from '@/views/shopvite/DataScreen.vue'
-import LiquidGlass from '@/views/shopvite/LiquidGlass.vue'
 import CustomerService from '@/views/shopvite/CustomerService.vue'
-import IndependentLayout from '@/views/shopvite/IndependentLayout.vue'
 import Dashboard from '@/component/original/dashboard.vue'
 import ButtonDemo from '@/views/vab/button.vue'
 import FormDemo from '@/views/vab/form.vue'
 import TableDemo from '@/views/vab/table.vue'
-import Unauthorized from '@/views/401.vue'
-import NotFound from '@/views/404.vue'
 import { createRouter, createWebHistory } from 'vue-router'
 
 const router = createRouter({
@@ -71,18 +66,6 @@ const router = createRouter({
           component: () => import('@/views/settings/index.vue'),
           meta: { title: '系统设置' },
         },
-        {
-          name: 'Unauthorized',
-          path: 'error/401',
-          component: Unauthorized,
-          meta: { title: '无权限' },
-        },
-        {
-          name: 'NotFound',
-          path: 'error/404',
-          component: NotFound,
-          meta: { title: '页面不存在' },
-        },
       ],
     },
     {
@@ -130,34 +113,10 @@ const router = createRouter({
           meta: { title: '实时监控' },
         },
         {
-          name: 'Tiles',
-          path: 'tiles',
-          component: Tiles,
-          meta: { title: '磁贴' },
-        },
-        {
-          name: 'IndependentLayout',
-          path: 'independent-layout',
-          component: IndependentLayout,
-          meta: { title: '独立布局' },
-        },
-        {
           name: 'DataScreen',
           path: 'data-screen',
           component: DataScreen,
           meta: { title: '数据大屏' },
-        },
-        {
-          name: 'WorkBench',
-          path: 'workbench',
-          component: WorkBench,
-          meta: { title: '工作台' },
-        },
-        {
-          name: 'LiquidGlass',
-          path: 'liquid-glass',
-          component: LiquidGlass,
-          meta: { title: '液态玻璃' },
         },
         {
           name: 'CustomerService',
@@ -170,6 +129,54 @@ const router = createRouter({
           path: 'update-log',
           component: UpdateLog,
           meta: { title: '更新日志' },
+        },
+        {
+          name: 'ShopViteProfile',
+          path: 'profile',
+          component: () => import('@/views/profile/index.vue'),
+          meta: { title: '个人中心' },
+        },
+        {
+          name: 'ShopViteSettings',
+          path: 'settings',
+          component: () => import('@/views/settings/index.vue'),
+          meta: { title: '系统设置' },
+        },
+        {
+          name: 'AdminUsers',
+          path: 'admin/users',
+          component: () => import('@/views/shopvite/admin/UserManagement.vue'),
+          meta: { title: '用户管理' },
+        },
+        {
+          name: 'AdminPermissions',
+          path: 'admin/permissions',
+          component: () => import('@/views/shopvite/admin/PermissionManagement.vue'),
+          meta: { title: '权限管理' },
+        },
+        {
+          name: 'AdminGoods',
+          path: 'admin/goods',
+          component: () => import('@/views/shopvite/admin/GoodsManagement.vue'),
+          meta: { title: '商品管理' },
+        },
+        {
+          name: 'AdminGoodsStats',
+          path: 'admin/goods-stats',
+          component: () => import('@/views/shopvite/admin/GoodsStatistics.vue'),
+          meta: { title: '商品统计' },
+        },
+        {
+          name: 'AdminGoodsComments',
+          path: 'admin/goods-comments',
+          component: () => import('@/views/shopvite/admin/GoodsComments.vue'),
+          meta: { title: '商品评论' },
+        },
+        {
+          name: 'AdminWorkOrders',
+          path: 'admin/work-orders',
+          component: () => import('@/views/shopvite/admin/WorkOrders.vue'),
+          meta: { title: '工单管理' },
         },
       ],
     },

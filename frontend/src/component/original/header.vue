@@ -628,21 +628,12 @@ onBeforeUnmount(() => document.removeEventListener('fullscreenchange', syncFulls
 const linkList = ref([{
     name: 'GitHub 地址',
     link: '#'
-}, {
-    name: '码云地址',
-    link: '#'
-}, {
-    name: 'Admin Pro 地址',
-    link: '#'
-}, {
-    name: 'Admin Plus 地址',
-    link: '#'
-}, {
+},  {
     name: 'Shop Vite 地址',
-    link: '#'
+    link: '/shop-vite'
 }, {
     name: '好工作就业参考网',
-    link: '#'
+    link: '/job'
 }
 ]);
 </script>

@@ -2,7 +2,6 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 
-const repoUrl = 'https://github.com/zxwk1998/vue3-admin-better'
 const index = ref(0)
 const text = ref([
     'Hello World',
@@ -33,7 +32,6 @@ onBeforeUnmount(() => {
             <p>
                 <a :href="repoUrl" target="_blank" rel="noopener noreferrer" class="star">star:19k</a>
                 愿您新的一年平安喜乐，万事顺意，所得皆所愿！
-                <a :href="repoUrl" target="_blank" rel="noopener noreferrer">admin-plus演示地址</a> ，
                 <RouterLink to="/shop-vite">shop-vite演示地址</RouterLink>
             </p>
         </div>

@@ -5,7 +5,7 @@ import mockRoutes from './mock/index.js'
 const { mock: mockjs } = Mock
 
 const app = express()
-const port = Number(process.env.PORT) || 8090
+const port = Number(process.env.PORT) || 5173
 const host = process.env.HOST || '127.0.0.1'
 const prefix = process.env.API_PREFIX || '/api'
 

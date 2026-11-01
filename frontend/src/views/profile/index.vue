@@ -1,798 +1,1170 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  Briefcase,
+  Calendar,
+  Check,
+  EditPen,
+  Female,
+  Link,
+  Male,
+  OfficeBuilding,
+  Plus,
+  Refresh,
+  SwitchButton,
+  User,
+} from '@element-plus/icons-vue'
 import { useUserProfile } from '@/composables/useUserProfile'
+import Footer from '@/component/shopviteChoices/footer/footer.vue'
 
 const HISTORY_KEY = 'shop-vite:path-history'
-const RECENT_LIMIT = 4
+const RECENT_LIMIT = 3
+const PROFILE_KEY = 'shop-vite:profile-extra'
+const DEFAULT_MOTTO = '富在术数，不在劳身；利在势居，不在力耕。'
 
 const route = useRoute()
 const router = useRouter()
 const { userStore, isLoggedIn, displayName, avatarText, roleLabel, email } = useUserProfile()
 
-const editing = ref(false)
-const formRef = ref()
-const form = reactive({ username: '', email: '' })
+const activeTab = ref('basic')
 
-const rules = {
-    username: [
-        { required: true, message: '请填写昵称', trigger: 'blur' },
-        { min: 2, max: 16, message: '昵称长度需在 2 到 16 个字符之间', trigger: 'blur' },
-    ],
-    email: [{ type: 'email', message: '邮箱格式不正确', trigger: 'blur' }],
-}
+const profile = reactive({
+  username: '',
+  nickname: 'good luck',
+  gender: '女',
+  bio: DEFAULT_MOTTO,
+  tags: ['腹黑', '怕麻烦', '小仙女', '仙气飘飘'],
+  profession: '前端小白白',
+  birthday: '1992/8/11',
+  department: '',
+  following: false,
+  phone: '138****8888',
+  wechat: '',
+  github: '',
+})
 
-const infoRows = computed(() => [
-    { label: '昵称', value: displayName.value },
-    { label: '角色', value: roleLabel.value },
-    { label: '邮箱', value: email.value || '未绑定邮箱' },
-])
+const savedSnapshot = ref('')
+const currentSnapshot = computed(() => JSON.stringify(profile))
+const dirty = computed(() => currentSnapshot.value !== savedSnapshot.value)
+
+const genderOptions = ['女', '男', '保密']
+const tagLimit = 8
+const addingTag = ref(false)
+const newTag = ref('')
+
+const editDialog = ref(false)
+const editForm = reactive({ profession: '', birthday: '', department: '' })
 
 const recentVisits = ref([])
 
-function readRecentVisits() {
-    try {
-        const saved = JSON.parse(sessionStorage.getItem(HISTORY_KEY) || '[]')
-        if (!Array.isArray(saved)) return []
-        return saved
-            .filter((item) => item && typeof item.path === 'string' && typeof item.title === 'string')
-            .slice(-RECENT_LIMIT)
-            .reverse()
-    } catch {
-        return []
-    }
+const identityRows = computed(() => [
+  { key: 'profession', label: '职业', value: profile.profession || '未填写', icon: Briefcase },
+  { key: 'birthday', label: '生日', value: profile.birthday || '未填写', icon: Calendar },
+  { key: 'gender', label: '性别', value: profile.gender, icon: profile.gender === '男' ? Male : Female },
+  { key: 'department', label: '部门', value: profile.department || '未填写', icon: OfficeBuilding },
+])
+
+const bindings = computed(() => [
+  {
+    key: 'email',
+    label: '邮箱',
+    icon: Link,
+    value: email.value,
+    desc: '邮箱随登录账号同步，暂不支持在本页解绑。',
+    editable: false,
+  },
+  {
+    key: 'phone',
+    label: '手机号',
+    icon: User,
+    value: profile.phone,
+    desc: '用于接收工单与安全提醒。',
+    editable: true,
+  },
+  {
+    key: 'wechat',
+    label: '微信',
+    icon: Link,
+    value: profile.wechat,
+    desc: '绑定后可通过微信扫码快捷登录。',
+    editable: true,
+  },
+  {
+    key: 'github',
+    label: 'GitHub',
+    icon: Link,
+    value: profile.github,
+    desc: '用于同步开源项目与 Issues。',
+    editable: true,
+  },
+])
+
+const followText = computed(() => (profile.following ? 'Following' : 'Follow me'))
+
+function defaultsFor(name) {
+  return {
+    nickname: name === 'admin' ? 'good luck' : name || 'good luck',
+  }
 }
 
-function startEdit() {
-    form.username = userStore.username
-    form.email = userStore.email
-    editing.value = true
+function loadProfile() {
+  const name = userStore.username || ''
+  Object.assign(profile, {
+    username: name,
+    nickname: defaultsFor(name).nickname,
+    gender: '女',
+    bio: DEFAULT_MOTTO,
+    tags: ['腹黑', '怕麻烦', '小仙女', '仙气飘飘'],
+    profession: '前端小白白',
+    birthday: '1992/8/11',
+    department: '',
+    following: false,
+    phone: '138****8888',
+    wechat: '',
+    github: '',
+  })
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(PROFILE_KEY) || 'null')
+    if (saved && (!saved.username || saved.username === name)) {
+      Object.assign(profile, {
+        ...saved,
+        username: name,
+        tags: Array.isArray(saved.tags) ? [...saved.tags] : profile.tags,
+      })
+    }
+  } catch {
+    // 本地数据损坏时回退到默认资料
+  }
+  savedSnapshot.value = JSON.stringify(profile)
 }
 
-function cancelEdit() {
-    editing.value = false
-    formRef.value?.clearValidate()
+function persistProfile() {
+  profile.username = userStore.username || ''
+  try {
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile))
+    savedSnapshot.value = JSON.stringify(profile)
+    return true
+  } catch {
+    ElMessage.error('本地存储不可用，资料未能保存')
+    return false
+  }
 }
 
-async function submitProfile() {
-    const valid = await formRef.value?.validate().catch(() => false)
-    if (!valid) return
-    userStore.saveProfile({ username: form.username, email: form.email })
-    editing.value = false
-    ElMessage.success('资料已保存')
+function saveProfile() {
+  if (!isLoggedIn.value) {
+    ElMessage.warning('请先登录后再保存资料')
+    return
+  }
+  if (!profile.nickname.trim()) {
+    ElMessage.warning('昵称不能为空')
+    return
+  }
+  if (persistProfile()) ElMessage.success('资料已保存')
 }
 
-const shortcuts = [
-    { title: '默认首页', desc: '返回系统概览', path: '/' },
-    { title: '模板市场', desc: '浏览 /shop 模板', path: '/shop' },
-    { title: 'Shop Vite', desc: '进入看板工作台', path: '/shop-vite' },
-    { title: '系统设置', desc: '界面与偏好项', path: '/settings' },
-]
-
-async function refreshUserInfo() {
-    if (!userStore.accessToken) {
-        ElMessage.info('请先登录后再获取账号信息')
-        return
-    }
-    try {
-        await userStore.getUserInfo()
-        ElMessage.success('账号信息已刷新')
-    } catch (error) {
-        ElMessage.error(error?.message || '获取用户信息失败')
-    }
+function resetProfile() {
+  if (!dirty.value) return
+  loadProfile()
+  ElMessage.info('已恢复为上次保存的资料')
 }
 
-async function handleLogout() {
-    try {
-        await ElMessageBox.confirm('确定要退出当前账号吗？', '退出登录', {
-            type: 'warning',
-            confirmButtonText: '退出',
-            cancelButtonText: '取消',
-        })
-    } catch {
-        return
-    }
-    try {
-        await userStore.logout()
-    } catch {
-        // 后端不可用时 logout 的 finally 仍会清理本地登录态
-    }
-    ElMessage.success('已退出登录')
+function toggleFollow() {
+  if (!isLoggedIn.value) {
+    ElMessage.info('登录后即可关注该账号')
     router.push({ path: '/login', query: { redirect: route.fullPath } })
+    return
+  }
+  profile.following = !profile.following
+  persistProfile()
+  ElMessage.success(profile.following ? '已关注，后续动态会提醒你' : '已取消关注')
+}
+
+function startAddTag() {
+  if (profile.tags.length >= tagLimit) {
+    ElMessage.warning(`最多只能添加 ${tagLimit} 个标签`)
+    return
+  }
+  addingTag.value = true
+  newTag.value = ''
+}
+
+function confirmAddTag() {
+  const value = newTag.value.trim()
+  if (!value) {
+    addingTag.value = false
+    return
+  }
+  if (value.length > 10) {
+    ElMessage.warning('单个标签最多 10 个字符')
+    return
+  }
+  if (profile.tags.includes(value)) {
+    ElMessage.warning('该标签已存在')
+    return
+  }
+  profile.tags.push(value)
+  addingTag.value = false
+  newTag.value = ''
+}
+
+function removeTag(tag) {
+  profile.tags = profile.tags.filter((item) => item !== tag)
+}
+
+function openInfoEditor() {
+  editForm.profession = profile.profession
+  editForm.birthday = profile.birthday
+  editForm.department = profile.department
+  editDialog.value = true
+}
+
+function confirmInfoEditor() {
+  profile.profession = editForm.profession.trim()
+  profile.birthday = editForm.birthday
+  profile.department = editForm.department.trim()
+  editDialog.value = false
+  if (isLoggedIn.value) persistProfile()
+  ElMessage.success('资料卡已更新')
+}
+
+async function editBinding(row) {
+  if (!isLoggedIn.value) {
+    ElMessage.warning('请先登录后再管理绑定')
+    return
+  }
+  if (row.value) {
+    try {
+      await ElMessageBox.confirm(`确定解绑${row.label}「${row.value}」吗？`, `解绑${row.label}`, {
+        type: 'warning',
+        confirmButtonText: '解绑',
+        cancelButtonText: '取消',
+      })
+    } catch {
+      return
+    }
+    profile[row.key] = ''
+    persistProfile()
+    ElMessage.success(`${row.label}已解绑`)
+    return
+  }
+
+  let input
+  try {
+    const result = await ElMessageBox.prompt(`请输入要绑定的${row.label}`, `绑定${row.label}`, {
+      confirmButtonText: '绑定',
+      cancelButtonText: '取消',
+      inputPattern: /\S+/,
+      inputErrorMessage: '内容不能为空',
+    })
+    input = result.value
+  } catch {
+    return
+  }
+  profile[row.key] = input.trim()
+  persistProfile()
+  ElMessage.success(`${row.label}绑定成功`)
+}
+
+function readRecentVisits() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(HISTORY_KEY) || '[]')
+    if (!Array.isArray(saved)) return []
+    return saved
+      .filter((item) => item && typeof item.path === 'string' && typeof item.title === 'string')
+      .slice(-RECENT_LIMIT)
+      .reverse()
+  } catch {
+    return []
+  }
 }
 
 function go(path) {
-    if (path !== route.path) router.push(path)
+  if (path !== route.path) router.push(path)
 }
 
-function back() {
-    if (window.history.state?.back) router.back()
-    else go('/')
+async function refreshUserInfo() {
+  if (!userStore.accessToken) {
+    ElMessage.info('请先登录后再获取账号信息')
+    return
+  }
+  try {
+    await userStore.getUserInfo()
+    ElMessage.success('账号信息已刷新')
+  } catch (error) {
+    ElMessage.error(error?.message || '获取用户信息失败')
+  }
 }
+
+async function handleLogout() {
+  if (!isLoggedIn.value) {
+    router.push({ path: '/login', query: { redirect: route.fullPath } })
+    return
+  }
+  try {
+    await ElMessageBox.confirm('确定要退出当前账号吗？', '退出登录', {
+      type: 'warning',
+      confirmButtonText: '退出',
+      cancelButtonText: '取消',
+    })
+  } catch {
+    return
+  }
+  try {
+    await userStore.logout()
+  } catch {
+    // 后端不可用时 logout 的 finally 仍会清理本地登录态
+  }
+  ElMessage.success('已退出登录')
+  router.push({ path: '/login', query: { redirect: route.fullPath } })
+}
+
+watch(
+  () => userStore.username,
+  () => loadProfile()
+)
 
 onMounted(() => {
-    recentVisits.value = readRecentVisits()
+  loadProfile()
+  recentVisits.value = readRecentVisits()
 })
 </script>
 
 <template>
-    <div class="profilePage">
-        <div class="pageHead">
-            <button type="button" class="backBtn" @click="back">返回</button>
-            <div class="titles">
-                <h2>个人中心</h2>
-                <!-- <p>账号信息来自后端 /userInfo，与模板市场、Shop Vite 头部共用同一份数据；昵称与邮箱可在本页修改。</p> -->
-            </div>
-            <el-button type="primary" plain @click="refreshUserInfo">
-                <el-icon><Refresh /></el-icon><span>刷新账号信息</span>
-            </el-button>
+  <div class="profilePage">
+    <el-alert
+      v-if="!isLoggedIn"
+      class="guestAlert"
+      type="warning"
+      show-icon
+      :closable="false"
+      title="当前处于访客状态"
+      description="登录后才能保存资料、关注账号并管理绑定信息，以下内容仅作展示。"
+    />
+
+    <div class="profileGrid">
+      <aside class="identityCard">
+        <div class="identityTop">
+          <span class="avatar">
+            <img v-if="userStore.avatar" :src="userStore.avatar" :alt="displayName" />
+            <template v-else>{{ avatarText }}</template>
+          </span>
+          <strong class="identityName">{{ displayName }}</strong>
+          <span class="identityRole">{{ roleLabel }}</span>
+          <p class="identityMotto">{{ profile.bio || DEFAULT_MOTTO }}</p>
+          <button type="button" class="followBtn" :class="{ following: profile.following }" @click="toggleFollow">
+            <el-icon>
+              <Check v-if="profile.following" />
+              <Plus v-else />
+            </el-icon>
+            <span>{{ followText }}</span>
+          </button>
         </div>
 
-        <div class="hero">
-            <span class="heroAvatar">
-                <img v-if="userStore.avatar" :src="userStore.avatar" :alt="displayName">
-                <template v-else>{{ avatarText }}</template>
+        <div class="identityDivider" aria-hidden="true"></div>
+
+        <div class="identityBlock">
+          <div class="blockHead">
+            <h3>账号信息</h3>
+            <button type="button" class="iconBtn" title="编辑资料卡" @click="openInfoEditor">
+              <el-icon><EditPen /></el-icon>
+            </button>
+          </div>
+          <ul class="infoRows">
+            <li v-for="row in identityRows" :key="row.key">
+              <span class="infoIcon"><el-icon><component :is="row.icon" /></el-icon></span>
+              <span class="infoLabel">{{ row.label }}</span>
+              <span class="infoValue">{{ row.value }}</span>
+            </li>
+          </ul>
+        </div>
+
+        <div class="identityDivider" aria-hidden="true"></div>
+
+        <div class="identityBlock">
+          <h3 class="blockHeadTitle">最近访问</h3>
+          <div v-if="recentVisits.length" class="recentList">
+            <button v-for="item in recentVisits" :key="item.path" type="button" class="recentItem" @click="go(item.path)">
+              <span class="recentTitle">{{ item.title }}</span>
+              <span class="recentPath">{{ item.path }}</span>
+            </button>
+          </div>
+          <p v-else class="emptyText">
+            还没有浏览记录，
+            <button type="button" class="inlineLink" @click="go('/shop-vite')">去逛一圈</button>
+            就会出现在这里。
+          </p>
+        </div>
+
+        <div class="identityActions">
+          <el-button plain size="small" :icon="Refresh" @click="refreshUserInfo">刷新账号信息</el-button>
+          <el-button plain size="small" type="danger" :icon="SwitchButton" @click="handleLogout">
+            {{ isLoggedIn ? '退出登录' : '去登录' }}
+          </el-button>
+        </div>
+      </aside>
+
+      <section class="detailCard">
+        <div class="tabBar" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            class="tabItem"
+            :class="{ active: activeTab === 'basic' }"
+            :aria-selected="activeTab === 'basic'"
+            @click="activeTab = 'basic'"
+          >
+            基本信息
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="tabItem"
+            :class="{ active: activeTab === 'binding' }"
+            :aria-selected="activeTab === 'binding'"
+            @click="activeTab = 'binding'"
+          >
+            账号绑定
+          </button>
+          <span v-if="dirty" class="dirtyHint">有未保存的修改</span>
+        </div>
+
+        <div v-if="activeTab === 'basic'" class="tabPanel">
+          <el-form label-width="76px" label-position="left" class="profileForm" @submit.prevent>
+            <el-form-item label="姓名">
+              <div class="readonlyField">
+                <span>{{ displayName }}</span>
+                <i>登录账号，不可修改</i>
+              </div>
+            </el-form-item>
+            <el-form-item label="昵称">
+              <el-input v-model="profile.nickname" maxlength="16" show-word-limit placeholder="请输入昵称" />
+            </el-form-item>
+            <el-form-item label="性别">
+              <el-radio-group v-model="profile.gender">
+                <el-radio v-for="item in genderOptions" :key="item" :value="item">{{ item }}</el-radio>
+              </el-radio-group>
+            </el-form-item>
+            <el-form-item label="个人简介">
+              <el-input
+                v-model="profile.bio"
+                type="textarea"
+                :rows="3"
+                maxlength="80"
+                show-word-limit
+                placeholder="写一句介绍自己的话"
+              />
+            </el-form-item>
+            <el-form-item label="标签">
+              <div class="tagEditor">
+                <el-tag
+                  v-for="tag in profile.tags"
+                  :key="tag"
+                  class="profileTag"
+                  closable
+                  effect="plain"
+                  @close="removeTag(tag)"
+                >
+                  {{ tag }}
+                </el-tag>
+
+                <template v-if="addingTag">
+                  <el-input
+                    v-model="newTag"
+                    class="tagInput"
+                    size="small"
+                    maxlength="10"
+                    autofocus
+                    placeholder="新标签"
+                    @keyup.enter="confirmAddTag"
+                  />
+                  <el-button size="small" type="primary" @click="confirmAddTag">确定</el-button>
+                  <el-button size="small" @click="addingTag = false">取消</el-button>
+                </template>
+                <button v-else type="button" class="addTagBtn" :disabled="profile.tags.length >= tagLimit" @click="startAddTag">
+                  <el-icon><Plus /></el-icon>
+                  添加
+                </button>
+              </div>
+            </el-form-item>
+          </el-form>
+
+          <div class="formFooter">
+            <span class="formHint">
+              {{ isLoggedIn ? '资料保存在浏览器本地，与本账号绑定。' : '登录后才可以保存修改。' }}
             </span>
-            <div class="heroIdentity">
-                <strong class="heroName">{{ displayName }}</strong>
-                <span class="heroMail">{{ email || '未绑定邮箱' }}</span>
-                <div class="heroTags">
-                    <span class="tag">{{ roleLabel }}</span>
-                </div>
+            <div class="formActions">
+              <el-button :disabled="!dirty" @click="resetProfile">重置</el-button>
+              <el-button type="primary" :disabled="!isLoggedIn || !dirty" @click="saveProfile">保存修改</el-button>
             </div>
+          </div>
         </div>
 
-        <div class="grid">
-            <section class="card">
-                <p class="cardEyebrow">01 · Account</p>
-                <div class="titleRow">
-                    <h3 class="cardTitle">账号资料</h3>
-                    <div class="titleOps">
-                        <button v-if="!editing" type="button" class="editBtn" :disabled="!isLoggedIn"
-                            :title="isLoggedIn ? '编辑昵称与邮箱' : '登录后可编辑资料'" @click="startEdit">编辑</button>
-                        <button type="button" class="editBtn logoutBtn" :disabled="!isLoggedIn"
-                            :title="isLoggedIn ? '退出当前账号' : '当前未登录'" @click="handleLogout">退出登录</button>
-                    </div>
-                </div>
-                <el-form v-if="editing" ref="formRef" :model="form" :rules="rules" label-position="top"
-                    class="infoForm" @submit.prevent="submitProfile">
-                    <el-form-item label="昵称" prop="username">
-                        <el-input v-model="form.username" maxlength="16" show-word-limit placeholder="2–16 个字符" />
-                    </el-form-item>
-                    <el-form-item label="邮箱" prop="email">
-                        <el-input v-model="form.email" placeholder="name@example.com" />
-                    </el-form-item>
-                    <div class="formOps">
-                        <el-button type="primary" @click="submitProfile">保存</el-button>
-                        <el-button @click="cancelEdit">取消</el-button>
-                    </div>
-                </el-form>
-                <ul v-else class="infoList">
-                    <li v-for="row in infoRows" :key="row.label">
-                        <span class="infoLabel">{{ row.label }}</span>
-                        <strong class="infoValue">{{ row.value }}</strong>
-                    </li>
-                </ul>
-
-                <div class="recentBlock">
-                    <h4 class="blockTitle">最近访问</h4>
-                    <div v-if="recentVisits.length" class="recentList">
-                        <button v-for="item in recentVisits" :key="item.path" type="button" class="recentItem"
-                            @click="go(item.path)">
-                            <span class="recentTitle">{{ item.title }}</span>
-                            <span class="recentPath">{{ item.path }}</span>
-                        </button>
-                    </div>
-                    <p v-else class="emptyText">
-                        还没有 Shop Vite 浏览记录，
-                        <button type="button" class="inlineLink" @click="go('/shop-vite')">去逛一圈</button>
-                        就会出现在这里。
-                    </p>
-                </div>
-            </section>
-
-            <section class="card shortcutCard">
-                <p class="cardEyebrow">02 · Shortcuts</p>
-                <h3 class="cardTitle">快捷入口</h3>
-                <div class="shortcutGrid">
-                    <button v-for="(item, index) in shortcuts" :key="item.path" type="button" class="shortcut"
-                        :class="{ active: item.path === route.path }" @click="go(item.path)">
-                        <i class="shortcutIndex">{{ String(index + 1).padStart(2, '0') }}</i>
-                        <span class="shortcutBody">
-                            <strong>{{ item.title }}</strong>
-                            <span class="shortcutDesc">{{ item.desc }}</span>
-                        </span>
-                        <i class="shortcutPath">{{ item.path }}</i>
-                    </button>
-                </div>
-            </section>
+        <div v-else class="tabPanel">
+          <ul class="bindingList">
+            <li v-for="row in bindings" :key="row.key" class="bindingItem">
+              <span class="bindingIcon"><el-icon><component :is="row.icon" /></el-icon></span>
+              <span class="bindingBody">
+                <span class="bindingHead">
+                  <strong>{{ row.label }}</strong>
+                  <el-tag v-if="row.value" size="small" type="success" effect="plain">已绑定</el-tag>
+                  <el-tag v-else size="small" type="info" effect="plain">未绑定</el-tag>
+                </span>
+                <span class="bindingValue">{{ row.value || '暂未绑定' }}</span>
+                <span class="bindingDesc">{{ row.desc }}</span>
+              </span>
+              <el-button
+                v-if="row.editable"
+                link
+                :type="row.value ? 'danger' : 'primary'"
+                :disabled="!isLoggedIn"
+                @click="editBinding(row)"
+              >
+                {{ row.value ? '解绑' : '绑定' }}
+              </el-button>
+              <span v-else class="bindingLocked">只读</span>
+            </li>
+          </ul>
         </div>
+      </section>
     </div>
+
+    <el-dialog v-model="editDialog" title="编辑资料卡" width="420px" destroy-on-close>
+      <el-form :model="editForm" label-width="64px">
+        <el-form-item label="职业">
+          <el-input v-model="editForm.profession" maxlength="16" placeholder="例如：前端小白白" />
+        </el-form-item>
+        <el-form-item label="生日">
+          <el-date-picker
+            v-model="editForm.birthday"
+            type="date"
+            value-format="YYYY/M/D"
+            placeholder="选择生日"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="部门">
+          <el-input v-model="editForm.department" maxlength="16" placeholder="例如：体验设计部" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editDialog = false">取消</el-button>
+        <el-button type="primary" @click="confirmInfoEditor">确定</el-button>
+      </template>
+    </el-dialog>
+  </div>
+  <Footer />
 </template>
 
 <style scoped>
 .profilePage {
-    padding: 18px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    background-color: var(--app-surface);
-    border-radius: 10px;
+  flex: 1;
+  min-height: 0;
+  padding: 18px clamp(12px, 2vw, 24px);
+  box-sizing: border-box;
+  overflow-y: auto;
+  background-color: var(--app-surface-plain);
+  scrollbar-width: thin;
+  scrollbar-color: var(--app-text-ghost) transparent;
 }
 
-.pageHead {
-    width: 100%;
-    max-width: 1120px;
-    margin: 0 auto;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 4px 2px;
+.guestAlert {
+  margin-bottom: 16px;
 }
 
-.backBtn {
-    flex-shrink: 0;
-    height: 30px;
-    padding: 0 14px;
-    color: var(--app-text-secondary);
-    font-size: 12px;
-    border: 1px solid var(--app-border-cool);
-    border-radius: 8px;
-    background-color: var(--app-surface);
-    cursor: pointer;
-    transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+.profileGrid {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.72fr) minmax(0, 1.4fr);
+  align-items: start;
+  gap: 18px;
 }
 
-.backBtn:hover {
-    border-color: var(--app-border-strong);
-    background-color: var(--app-surface-quiet);
-    transform: translateY(-1px);
+.identityCard,
+.detailCard {
+  border: 1px solid var(--app-border-quiet);
+  border-radius: 14px;
+  background-color: var(--app-surface);
+  box-shadow:
+    0 1px 2px rgba(47, 58, 74, 0.04),
+    0 12px 26px -20px rgba(47, 58, 74, 0.45);
 }
 
-.titles {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
+.identityCard {
+  padding: 26px 22px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
-.titles h2 {
-    margin: 0;
-    color: var(--app-text-deeper);
-    font-size: 18px;
-    font-weight: 600;
+.identityTop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
 }
 
-.titles p {
-    margin: 0;
-    color: var(--app-text-soft);
-    font-size: 12px;
-    line-height: 1.6;
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 92px;
+  height: 92px;
+  margin-bottom: 6px;
+  overflow: hidden;
+  color: #fff;
+  font-size: 34px;
+  font-weight: 600;
+  border: 3px solid var(--app-surface);
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4e88f3, #67c23a);
+  box-shadow: 0 8px 20px -10px rgba(78, 136, 243, 0.65);
 }
 
-.hero {
-    width: 100%;
-    max-width: 1120px;
-    margin: 0 auto;
-    box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    gap: 18px;
-    padding: 20px;
-    border: 1px solid var(--app-border-quiet);
-    border-radius: 14px;
-    background-color: var(--app-surface-quiet);
-    box-shadow: 0 1px 2px rgba(47, 58, 74, 0.04), 0 10px 24px -14px rgba(47, 58, 74, 0.2);
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-.heroAvatar {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 72px;
-    height: 72px;
-    flex-shrink: 0;
-    overflow: hidden;
-    color: var(--app-text-secondary);
-    font-size: 26px;
-    font-weight: 600;
-    border: 1px solid var(--app-border-quiet);
-    border-radius: 50%;
-    background-color: var(--app-surface-mute);
+.identityName {
+  color: var(--app-text-deeper);
+  font-size: 18px;
+  font-weight: 600;
 }
 
-.heroAvatar img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+.identityRole {
+  padding: 1px 10px;
+  color: var(--app-primary-strong);
+  font-size: 11px;
+  line-height: 19px;
+  border-radius: 999px;
+  background-color: var(--app-primary-soft);
 }
 
-.heroIdentity {
-    position: relative;
-    z-index: 1;
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+.identityMotto {
+  margin: 8px 0 4px;
+  color: var(--app-text-soft);
+  font-size: 12px;
+  line-height: 1.7;
 }
 
-.heroName {
-    overflow: hidden;
-    color: var(--app-text-deeper);
-    font-size: 20px;
-    font-weight: 600;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+.followBtn {
+  margin-top: 6px;
+  width: 100%;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #fff;
+  font-size: 13px;
+  border: none;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #4e88f3, #3f74d8);
+  box-shadow: 0 8px 18px -10px rgba(78, 136, 243, 0.9);
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
 
-.heroMail {
-    color: var(--app-text-soft);
-    font-size: 12px;
+.followBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 22px -12px rgba(78, 136, 243, 0.95);
 }
 
-.heroTags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+.followBtn.following {
+  color: var(--app-primary-strong);
+  background: var(--app-primary-soft);
+  box-shadow: none;
 }
 
-.tag {
-    padding: 2px 10px;
-    color: var(--app-text-secondary);
-    font-size: 11px;
-    line-height: 18px;
-    border-radius: 999px;
-    background-color: var(--app-surface-mute);
+.followBtn:focus-visible {
+  outline: 2px solid var(--app-primary);
+  outline-offset: 2px;
 }
 
-.grid {
-    width: 100%;
-    max-width: 1120px;
-    margin: 0 auto;
-    display: grid;
-    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-    align-items: start;
-    gap: 18px;
+.identityDivider {
+  height: 1px;
+  background-color: var(--app-border-divider);
 }
 
-.card {
-    padding: 18px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    border: 1px solid var(--app-border-quiet);
-    border-radius: 14px;
-    background-color: var(--app-surface-bright);
-    box-shadow: 0 1px 2px rgba(47, 58, 74, 0.05), 0 10px 24px -12px rgba(47, 58, 74, 0.26);
+.identityBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.cardEyebrow {
-    margin: 0 0 -6px;
-    color: var(--app-text-ghost);
-    font-size: 11px;
-    font-family: Consolas, Monaco, monospace;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
+.blockHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
-.cardTitle {
-    margin: 0;
-    padding-bottom: 8px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--app-text);
-    font-size: 14px;
-    font-weight: 600;
-    border-bottom: 1px solid var(--app-border-divider);
+.blockHead h3,
+.blockHeadTitle {
+  margin: 0;
+  color: var(--app-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
-.cardTitle::before {
-    content: '';
-    flex-shrink: 0;
-    width: 3px;
-    height: 13px;
-    border-radius: 2px;
-    background-color: color-mix(in srgb, var(--app-primary) 50%, var(--app-text-ghost));
+.iconBtn {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--app-text-soft);
+  font-size: 13px;
+  border: 1px solid var(--app-border-cool);
+  border-radius: 6px;
+  background-color: var(--app-surface);
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease, background-color 0.16s ease;
 }
 
-.titleRow {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--app-border-divider);
+.iconBtn:hover {
+  color: var(--app-primary);
+  border-color: var(--app-primary);
+  background-color: var(--app-primary-softer);
 }
 
-.titleRow .cardTitle {
-    flex: 1;
-    min-width: 0;
-    padding-bottom: 0;
-    border-bottom: none;
+.infoRows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.titleOps {
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
+.infoRows li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  transition: background-color 0.16s ease;
 }
 
-.editBtn {
-    flex-shrink: 0;
-    height: 26px;
-    padding: 0 12px;
-    color: var(--app-primary);
-    font-size: 12px;
-    border: 1px solid var(--app-border-cool);
-    border-radius: 7px;
-    background-color: var(--app-surface);
-    cursor: pointer;
-    transition: border-color 0.18s ease, background-color 0.18s ease;
+.infoRows li:hover {
+  background-color: var(--app-surface-quiet);
 }
 
-.editBtn:hover {
-    border-color: var(--app-primary);
-    background-color: var(--app-primary-softer);
-}
-
-.editBtn:focus-visible {
-    outline: 2px solid var(--app-primary);
-    outline-offset: 2px;
-}
-
-.editBtn:disabled {
-    color: var(--app-text-muted);
-    border-color: var(--app-border-quiet);
-    background-color: var(--app-surface-quiet);
-    cursor: not-allowed;
-}
-
-.editBtn:disabled:hover {
-    border-color: var(--app-border-quiet);
-    background-color: var(--app-surface-quiet);
-}
-
-.logoutBtn {
-    color: var(--el-color-danger);
-    border-color: color-mix(in srgb, var(--el-color-danger) 35%, transparent);
-}
-
-.logoutBtn:hover {
-    border-color: var(--el-color-danger);
-    background-color: color-mix(in srgb, var(--el-color-danger) 8%, var(--app-surface));
-}
-
-.infoForm :deep(.el-form-item) {
-    margin-bottom: 14px;
-}
-
-.infoForm :deep(.el-form-item__label) {
-    padding-bottom: 4px;
-    color: var(--app-text-soft);
-    font-size: 12px;
-    line-height: 1.4;
-}
-
-.formOps {
-    display: flex;
-    gap: 10px;
-}
-
-.formOps :deep(.el-button + .el-button) {
-    margin-left: 0;
-}
-
-.infoList {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-}
-
-.infoList li {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    margin: 0 -8px;
-    padding: 9px 8px;
-    font-size: 13px;
-    border-bottom: 1px dashed var(--app-border-quiet);
-    border-radius: 8px;
-    transition: background-color 0.16s ease;
-}
-
-.infoList li:hover {
-    background-color: var(--app-surface-quiet);
-}
-
-.infoList li:last-child {
-    border-bottom: none;
+.infoIcon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  color: var(--app-primary);
+  font-size: 13px;
+  border-radius: 7px;
+  background-color: var(--app-primary-softer);
 }
 
 .infoLabel {
-    flex-shrink: 0;
-    color: var(--app-text-soft);
+  flex-shrink: 0;
+  color: var(--app-text-soft);
+  font-size: 12px;
 }
 
 .infoValue {
-    min-width: 0;
-    overflow: hidden;
-    color: var(--app-text);
-    font-weight: 500;
-    font-variant-numeric: tabular-nums;
-    text-align: right;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.shortcutGrid {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.shortcut {
-    width: 100%;
-    padding: 14px 16px;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    text-align: left;
-    border: 1px solid var(--app-border-cool);
-    border-radius: 10px;
-    background-color: var(--app-surface);
-    cursor: pointer;
-    transition: border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
-}
-
-.shortcut:hover {
-    border-color: var(--app-border-strong);
-    background-color: var(--app-surface-quiet);
-    box-shadow: inset 2px 0 0 color-mix(in srgb, var(--app-primary) 42%, transparent);
-}
-
-.shortcut:focus-visible {
-    outline: 2px solid var(--app-primary);
-    outline-offset: 2px;
-}
-
-.shortcut .shortcutIndex {
-    flex-shrink: 0;
-    width: 16px;
-    color: var(--app-text-ghost);
-    font-size: 12px;
-    font-family: Consolas, Monaco, monospace;
-    font-style: normal;
-    letter-spacing: 0.06em;
-    transition: color 0.18s ease;
-}
-
-.shortcut:hover .shortcutIndex {
-    color: var(--app-primary);
-}
-
-.shortcut.active {
-    border-color: var(--app-border-strong);
-    background-color: var(--app-surface-mute);
-}
-
-.shortcutBody {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.shortcutBody strong {
-    color: var(--app-text);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.8;
-}
-
-.shortcutDesc {
-    color: var(--app-text-soft);
-    font-size: 11px;
-    line-height: 1.4;
-}
-
-.shortcutPath {
-    flex-shrink: 0;
-    max-width: 46%;
-    overflow: hidden;
-    color: var(--app-text-muted);
-    font-size: 10px;
-    font-family: Consolas, Monaco, monospace;
-    font-style: normal;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--app-text);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .recentList {
-    padding: 2px 0;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .recentItem {
-    padding: 9px 12px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    text-align: left;
-    border: 1px solid var(--app-border-cool);
-    border-radius: 9px;
-    background-color: var(--app-surface);
-    cursor: pointer;
-    transition: border-color 0.16s ease, background-color 0.16s ease;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: left;
+  border: 1px solid var(--app-border-cool);
+  border-radius: 8px;
+  background-color: var(--app-surface);
+  cursor: pointer;
+  transition: border-color 0.16s ease, background-color 0.16s ease;
 }
 
 .recentItem:hover {
-    border-color: var(--app-border-strong);
-    background-color: var(--app-surface-quiet);
-}
-
-.recentItem:focus-visible {
-    outline: 2px solid var(--app-primary);
-    outline-offset: 2px;
+  border-color: var(--app-border-strong);
+  background-color: var(--app-surface-quiet);
 }
 
 .recentTitle {
-    min-width: 0;
-    overflow: hidden;
-    color: var(--app-text);
-    font-size: 12px;
-    font-weight: 600;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--app-text);
+  font-size: 12px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .recentPath {
-    flex-shrink: 0;
-    max-width: 52%;
-    overflow: hidden;
-    color: var(--app-text-muted);
-    font-size: 10px;
-    font-family: Consolas, Monaco, monospace;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  flex-shrink: 0;
+  max-width: 52%;
+  overflow: hidden;
+  color: var(--app-text-muted);
+  font-size: 10px;
+  font-family: Consolas, Monaco, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .emptyText {
-    margin: 0;
-    padding: 10px 0;
-    color: var(--app-text-muted);
-    font-size: 12px;
+  margin: 0;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  line-height: 1.7;
 }
 
 .inlineLink {
-    padding: 0;
-    color: var(--app-primary);
-    font-size: 12px;
-    border: none;
-    background: none;
-    text-decoration: underline dotted;
-    cursor: pointer;
+  padding: 0;
+  color: var(--app-primary);
+  font-size: 12px;
+  border: none;
+  background: none;
+  text-decoration: underline dotted;
+  cursor: pointer;
 }
 
 .inlineLink:hover {
-    text-decoration-style: solid;
+  text-decoration-style: solid;
 }
 
-.inlineLink:focus-visible {
-    outline: 2px solid var(--app-primary);
-    outline-offset: 2px;
-    border-radius: 3px;
+.identityActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
 }
 
-.recentBlock {
-    margin-top: 4px;
-    padding-top: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    border-top: 1px dashed var(--app-border-quiet);
+.detailCard {
+  padding: 8px 22px 20px;
 }
 
-.blockTitle {
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    color: var(--app-text-secondary);
-    font-size: 12px;
-    font-weight: 600;
+.tabBar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 0 0;
+  border-bottom: 1px solid var(--app-border-divider);
 }
 
-.blockTitle::before {
-    content: '';
-    flex-shrink: 0;
-    width: 3px;
-    height: 11px;
-    border-radius: 2px;
-    background-color: color-mix(in srgb, var(--app-primary) 42%, var(--app-text-ghost));
+.tabItem {
+  position: relative;
+  padding: 8px 14px 12px;
+  color: var(--app-text-soft);
+  font-size: 13px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition: color 0.16s ease;
 }
 
-.hint {
-    margin: 0;
-    color: var(--app-text-muted);
-    font-size: 11px;
-    line-height: 1.6;
+.tabItem:hover {
+  color: var(--app-text);
+}
+
+.tabItem.active {
+  color: var(--app-primary);
+  font-weight: 600;
+}
+
+.tabItem.active::after {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background-color: var(--app-primary);
+}
+
+.tabItem:focus-visible {
+  outline: 2px solid var(--app-primary);
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+
+.dirtyHint {
+  margin-left: auto;
+  padding: 1px 8px;
+  color: #e6a23c;
+  font-size: 11px;
+  line-height: 18px;
+  border-radius: 999px;
+  background-color: rgba(230, 162, 60, 0.12);
+}
+
+.tabPanel {
+  padding-top: 18px;
+}
+
+.profileForm :deep(.el-form-item) {
+  margin-bottom: 18px;
+}
+
+.profileForm :deep(.el-form-item__label) {
+  color: var(--app-text-soft);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.profileForm :deep(.el-input__wrapper),
+.profileForm :deep(.el-textarea__inner) {
+  border-radius: 8px;
+}
+
+.readonlyField {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  color: var(--app-text);
+  font-size: 13px;
+}
+
+.readonlyField i {
+  color: var(--app-text-muted);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.tagEditor {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.profileTag {
+  border-radius: 6px;
+}
+
+.tagInput {
+  width: 120px;
+}
+
+.addTagBtn {
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 8px;
+  color: var(--app-text-soft);
+  font-size: 12px;
+  border: 1px dashed var(--app-border-strong);
+  border-radius: 6px;
+  background-color: transparent;
+  cursor: pointer;
+  transition: color 0.16s ease, border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.addTagBtn:hover:not(:disabled) {
+  color: var(--app-primary);
+  border-color: var(--app-primary);
+  background-color: var(--app-primary-softer);
+}
+
+.addTagBtn:disabled {
+  color: var(--app-text-muted);
+  cursor: not-allowed;
+}
+
+.formFooter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px dashed var(--app-border-quiet);
+}
+
+.formHint {
+  color: var(--app-text-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.formActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.formActions :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
+.bindingList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bindingItem {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--app-border-cool);
+  border-radius: 10px;
+  background-color: var(--app-surface);
+  transition: border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.bindingItem:hover {
+  border-color: var(--app-border-strong);
+  background-color: var(--app-primary-softer);
+}
+
+.bindingIcon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  color: var(--app-primary);
+  font-size: 15px;
+  border-radius: 9px;
+  background-color: var(--app-primary-soft);
+}
+
+.bindingBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.bindingHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bindingHead strong {
+  color: var(--app-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.bindingValue {
+  overflow: hidden;
+  color: var(--app-text-secondary);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bindingDesc {
+  color: var(--app-text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.bindingLocked {
+  flex-shrink: 0;
+  color: var(--app-text-ghost);
+  font-size: 11px;
 }
 
 @keyframes cardIn {
-    from {
-        opacity: 0;
-        translate: 0 12px;
-    }
+  from {
+    opacity: 0;
+    translate: 0 12px;
+  }
 
-    to {
-        opacity: 1;
-        translate: 0 0;
-    }
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
 }
 
-.pageHead,
-.hero,
-.grid > .card {
-    animation: cardIn 0.46s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+.identityCard,
+.detailCard {
+  animation: cardIn 0.46s cubic-bezier(0.22, 0.61, 0.36, 1) both;
 }
 
-.hero {
-    animation-delay: 0.05s;
+.identityCard {
+  animation-delay: 0.05s;
 }
 
-.grid > .card:nth-child(1) {
-    animation-delay: 0.1s;
-}
-
-.grid > .card:nth-child(2) {
-    animation-delay: 0.16s;
+.detailCard {
+  animation-delay: 0.1s;
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .identityCard,
+  .detailCard {
+    animation: none;
+  }
 
-    .pageHead,
-    .hero,
-    .grid > .card {
-        animation: none;
-    }
+  .followBtn,
+  .iconBtn,
+  .tabItem,
+  .recentItem,
+  .addTagBtn,
+  .bindingItem,
+  .infoRows li {
+    transition: none;
+  }
+}
 
-    .infoList li,
-    .shortcut,
-    .shortcut .shortcutIndex,
-    .recentItem,
-    .editBtn {
-        transition: none;
-    }
+@media (max-width: 992px) {
+  .profileGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 768px) {
-    .profilePage {
-        padding: 14px;
-    }
+  .profilePage {
+    padding: 14px;
+  }
 
-    .pageHead {
-        flex-wrap: wrap;
-    }
+  .detailCard {
+    padding: 8px 16px 16px;
+  }
 
-    .grid {
-        grid-template-columns: 1fr;
-    }
+  .profileForm :deep(.el-form-item) {
+    flex-direction: column;
+    align-items: stretch;
+  }
 
-    .hero {
-        flex-direction: column;
-        align-items: flex-start;
-        padding: 16px;
-    }
+  .profileForm :deep(.el-form-item__label) {
+    justify-content: flex-start;
+    padding-bottom: 6px;
+  }
+
+  .bindingItem {
+    flex-wrap: wrap;
+  }
 }
 </style>

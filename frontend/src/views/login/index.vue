@@ -122,6 +122,9 @@ async function handleLogin() {
 <style scoped>
 .login-page {
   position: relative;
+  flex: 1;
+  width: 100%;
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -201,6 +204,8 @@ async function handleLogin() {
 .copyright {
   position: absolute;
   bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
   font-size: 12px;
   color: rgba(255, 255, 255, 0.45);
 }

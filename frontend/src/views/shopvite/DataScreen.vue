@@ -1,7 +1,5 @@
 <script setup>
 import { computed, onBeforeUnmount, ref } from 'vue'
-import Footer from '@/component/shopviteChoices/footer/footer.vue'
-
 const now = ref(new Date())
 const clockTimer = window.setInterval(() => {
     now.value = new Date()
@@ -124,7 +122,6 @@ onBeforeUnmount(() => {
                 </ul>
             </section>
         </div>
-        <Footer />
     </div>
 </template>
 
@@ -145,7 +142,7 @@ onBeforeUnmount(() => {
     align-items: flex-end;
     justify-content: space-between;
     gap: 14px;
-    margin-bottom: 18px;
+    margin-bottom: 25px;
 }
 
 .pageHeader h2 {
@@ -182,7 +179,7 @@ onBeforeUnmount(() => {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 16px;
-    margin-bottom: 18px;
+    margin-bottom: 20px;
 }
 
 .kpiCard {

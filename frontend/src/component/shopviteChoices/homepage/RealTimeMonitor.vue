@@ -1,742 +1,775 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { ChatDotRound, FullScreen, MagicStick, Odometer, VideoCamera, VideoPause, VideoPlay } from '@element-plus/icons-vue'
 import Footer from '../footer/footer.vue'
 
-const filters = ['全部', '提问', '订单', '系统']
+const DURATION = 60
+const streamCover = 'https://picsum.photos/seed/shop-vite-live-room/1280/720'
+
+const modeOptions = ['普通直播', '控流直播', '视频直播']
+const activeMode = ref('普通直播')
+
+const progress = ref(2)
+const playing = ref(true)
+const speed = ref(1)
+const muted = ref(false)
+const playerRef = ref(null)
+let playTimer = 0
+
+const pad = (value) => String(value).padStart(2, '0')
+function formatTime(seconds) {
+  return `${pad(Math.floor(seconds / 60))}:${pad(seconds % 60)}`
+}
+
+const timeText = computed(() => formatTime(progress.value))
+const durationText = computed(() => formatTime(DURATION))
+
+function togglePlay() {
+  playing.value = !playing.value
+}
+
+function toggleSpeed() {
+  speed.value = speed.value === 1 ? 2 : 1
+}
+
+function seek(event) {
+  const rect = event.currentTarget.getBoundingClientRect()
+  if (!rect.width) return
+  const ratio = (event.clientX - rect.left) / rect.width
+  progress.value = Math.min(DURATION, Math.max(0, Math.round(ratio * DURATION)))
+}
+
+function capture() {
+  ElMessage.success('已保存当前画面截图（演示）')
+}
+
+async function enterFullscreen() {
+  const player = playerRef.value
+  if (!player) return
+  try {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen()
+    } else {
+      await player.requestFullscreen()
+    }
+  } catch {
+    ElMessage.warning('当前浏览器不支持全屏')
+  }
+}
+
 const filter = ref('全部')
-const input = ref('')
-const chatRef = ref(null)
-
+const filterOptions = ['全部', '用户admin', '系统']
 const messages = ref([
-    { id: 1, user: '用户admin', content: '这件商品还有优惠券吗？', time: '10:10:10', type: '提问' },
-    { id: 2, user: '用户小鹿', content: '刚下单了极光降噪耳机，麻烦尽快发货～', time: '10:11:02', type: '订单' },
-    { id: 3, user: '系统', content: '主播已开启「提前购」活动，库存同步完成。', time: '10:11:35', type: '系统' },
-    { id: 4, user: '用户Kevin', content: '耳机支持蓝牙 5.3 吗？', time: '10:12:08', type: '提问' },
-    { id: 5, user: '用户阿雪', content: '订单 202610231028 申请修改收货地址。', time: '10:13:20', type: '订单' },
-    { id: 6, user: '用户Nora', content: '直播间声音有点小，能调大一点吗？', time: '10:14:06', type: '提问' },
-    { id: 7, user: '系统', content: '当前在线人数突破 1,200，推流状态稳定。', time: '10:14:58', type: '系统' },
-    { id: 8, user: '用户大鹏', content: '这款和上一代有什么区别？', time: '10:15:32', type: '提问' },
+  { user: '用户admin', content: '马上就要开始了，好激动！', time: '13:09:12' },
+  { user: '用户admin', content: '马上就要开始了，好激动！', time: '13:09:12' },
+  { user: '用户admin', content: '马上就要开始了，好激动！', time: '13:09:12' },
+  { user: '用户admin', content: '马上就要开始了，好激动！', time: '13:09:12' },
+  { user: '用户admin', content: '马上就要开始了，好激动！', time: '13:09:12' },
 ])
+const draft = ref('')
+const chatListRef = ref(null)
 
-const filteredMessages = computed(() => {
-    if (filter.value === '全部') return messages.value
-    return messages.value.filter((message) => message.type === filter.value)
-})
+const visibleMessages = computed(() =>
+  filter.value === '全部' ? messages.value : messages.value.filter((item) => item.user === filter.value)
+)
 
-const pad = (num) => String(num).padStart(2, '0')
 function nowTime() {
-    const date = new Date()
-    return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+  const now = new Date()
+  return `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
 }
 
 function scrollToBottom() {
-    nextTick(() => {
-        if (chatRef.value) chatRef.value.scrollTop = chatRef.value.scrollHeight
-    })
+  nextTick(() => {
+    const list = chatListRef.value
+    if (list) list.scrollTop = list.scrollHeight
+  })
 }
 
-function send() {
-    const content = input.value.trim()
-    if (!content) return
-    messages.value.push({ id: Date.now(), user: '我', content, time: nowTime(), type: '提问' })
-    input.value = ''
-    filter.value = '全部'
-    scrollToBottom()
+function sendMessage() {
+  const content = draft.value.trim()
+  if (!content) return
+  messages.value.push({ user: '我', content, time: nowTime() })
+  filter.value = '全部'
+  draft.value = ''
+  scrollToBottom()
 }
 
-const methods = [
-    { name: '普通直播', desc: '标准推流模式，适合日常带货与内容讲解。' },
-    { name: '控流直播', desc: '按网络状况动态调整码率，弱网下优先保证流畅度。' },
-    { name: '视频直播', desc: '循环播放预置视频，适合无人值守的长时间直播。' },
+const streams = [
+  { name: '主流', bitrate: '6 Mbps', fps: 60 },
+  { name: '热备', bitrate: '6 Mbps', fps: 60 },
+  { name: '冷备', bitrate: '6 Mbps', fps: 60 },
 ]
-const activeMethod = ref(0)
+const activeStream = ref('热备')
+const cdn = ref('KS')
+const playFormat = ref('Hls')
+const qualities = ['原画', '高清', '标清']
+const quality = ref('原画')
 
-const playing = ref(true)
-const resolution = ref('1080P')
-const resolutions = ['720P', '1080P', '4K']
-const viewCount = ref('1,286')
-
-const metrics = ref([
-    { label: '在线人数', value: '1,286' },
-    { label: '推流码率', value: '4.2 Mbps' },
-    { label: '平均延迟', value: '180 ms' },
-    { label: '丢帧率', value: '0.02%' },
-])
-
-let refreshTimer = null
-
-function handleAction(action) {
-    if (action === '切换清晰度') {
-        const index = resolutions.indexOf(resolution.value)
-        resolution.value = resolutions[(index + 1) % resolutions.length]
-        ElMessage.success(`已切换至 ${resolution.value}`)
-        return
-    }
-    if (action === '主备流切换') {
-        ElMessage.success('已切换至备用流，画面将在 2 秒内恢复')
-        return
-    }
-    ElMessage.info('推流垫片已下发，请留意画面变化')
+function switchQuality() {
+  const next = (qualities.indexOf(quality.value) + 1) % qualities.length
+  quality.value = qualities[next]
+  ElMessage.success(`已切换清晰度：${quality.value}`)
 }
 
-function selectMethod(index) {
-    activeMethod.value = index
+function switchStream() {
+  activeStream.value = activeStream.value === '主流' ? '热备' : '主流'
+  ElMessage.success(`已切换到${activeStream.value}`)
 }
 
-function refreshStatus() {
-    if (refreshTimer) return
-    refreshTimer = window.setTimeout(() => {
-        const viewers = 1200 + Math.floor(Math.random() * 200)
-        viewCount.value = viewers.toLocaleString('en-US')
-        metrics.value[0].value = viewCount.value
-        metrics.value[2].value = `${160 + Math.floor(Math.random() * 60)} ms`
-        refreshTimer = null
-        ElMessage.success('状态已刷新')
-    }, 400)
+function switchPadding() {
+  ElMessage.info('已推送垫片画面，观众将看到等待页（演示）')
 }
 
-onBeforeUnmount(() => {
-    if (refreshTimer) window.clearTimeout(refreshTimer)
+onMounted(() => {
+  playTimer = window.setInterval(() => {
+    if (!playing.value) return
+    progress.value = Math.min(DURATION, progress.value + speed.value)
+    if (progress.value >= DURATION) progress.value = 0
+  }, 1000)
+  scrollToBottom()
 })
+
+onBeforeUnmount(() => window.clearInterval(playTimer))
 </script>
 
 <template>
-    <div class="content">
-        <div class="main">
-            <section class="left panel">
-                <div class="title">
-                    <span>聊天窗口</span>
-                    <span class="count">{{ filteredMessages.length }}</span>
-                </div>
-                <div class="comment">
-                    <div class="search">
-                        <el-select v-model="filter" class="select">
-                            <el-option v-for="item in filters" :key="item" :label="item" :value="item" />
-                        </el-select>
-                    </div>
-                    <div ref="chatRef" class="commentContent">
-                        <ul>
-                            <li v-for="message in filteredMessages" :key="message.id">
-                                <div class="msgTop">
-                                    <span class="user">{{ message.user }}</span>
-                                    <span class="type" :class="message.type">{{ message.type }}</span>
-                                    <span class="time">{{ message.time }}</span>
-                                </div>
-                                <p>{{ message.content }}</p>
-                            </li>
-                        </ul>
-                        <el-empty
-                            v-if="!filteredMessages.length"
-                            description="暂无该类型消息"
-                            :image-size="60"
-                        />
-                    </div>
-                    <div class="send">
-                        <input v-model="input" type="text" placeholder="输入消息…" @keyup.enter="send">
-                        <button @click="send">发送</button>
-                    </div>
-                </div>
-            </section>
-
-            <section class="center">
-                <div class="monitor panel">
-                    <div class="title">
-                        <span>直播预览</span>
-                        <span class="liveBadge" :class="{ off: !playing }">{{ playing ? 'LIVE' : '已暂停' }}</span>
-                    </div>
-                    <div class="video" :class="{ paused: !playing }">
-                        <div class="glow"></div>
-                        <div class="videoMeta">
-                            <span>在线 {{ viewCount }}</span>
-                            <span>{{ resolution }}</span>
-                        </div>
-                        <button class="playBtn" @click="playing = !playing">
-                            {{ playing ? '暂停' : '播放' }}
-                        </button>
-                        <span class="videoHint">模拟直播画面 · 无损推流</span>
-                    </div>
-                </div>
-                <div class="methods panel">
-                    <div class="title">直播方式</div>
-                    <div class="methodChoose">
-                        <ul>
-                            <li
-                                v-for="(method, index) in methods"
-                                :key="method.name"
-                                :class="{ active: activeMethod === index }"
-                                @click="selectMethod(index)"
-                            >
-                                {{ method.name }}
-                            </li>
-                        </ul>
-                        <p>{{ methods[activeMethod].desc }}</p>
-                    </div>
-                </div>
-            </section>
-
-            <section class="right">
-                <div class="actions panel">
-                    <div class="title">快捷操作</div>
-                    <div class="choose">
-                        <button @click="handleAction('切换清晰度')">切换清晰度（{{ resolution }}）</button>
-                        <button @click="handleAction('主备流切换')">主备流切换</button>
-                        <button @click="handleAction('推流垫片')">推流垫片</button>
-                    </div>
-                </div>
-                <div class="status panel">
-                    <div class="title">直播状态</div>
-                    <ul class="statusList">
-                        <li v-for="metric in metrics" :key="metric.label">
-                            <span>{{ metric.label }}</span>
-                            <strong>{{ metric.value }}</strong>
-                        </li>
-                    </ul>
-                    <button class="refresh" @click="refreshStatus">刷新状态</button>
-                </div>
-            </section>
+  <div class="content">
+    <div class="monitorGrid">
+      <section class="card chatCard">
+        <header class="cardHead">
+          <el-icon class="liveIcon"><ChatDotRound /></el-icon>
+          <span>聊天窗口</span>
+        </header>
+        <div class="chatBody">
+          <div class="chatTools">
+            <el-select v-model="filter" class="chatFilter" size="small">
+              <el-option v-for="item in filterOptions" :key="item" :label="item" :value="item" />
+            </el-select>
+          </div>
+          <ul ref="chatListRef" class="msgList">
+            <li v-for="(item, index) in visibleMessages" :key="`${item.time}-${index}`" class="msgItem">
+              <span class="msgUser">{{ item.user }}</span>
+              <p class="msgText">{{ item.content }}</p>
+              <time class="msgTime">{{ item.time }}</time>
+            </li>
+            <li v-if="!visibleMessages.length" class="msgEmpty">暂无该用户的留言</li>
+          </ul>
+          <form class="composer" @submit.prevent="sendMessage">
+            <input v-model="draft" type="text" placeholder="输入留言…" maxlength="200" />
+            <button type="submit" :disabled="!draft.trim()">发送</button>
+          </form>
         </div>
-        <Footer />
+      </section>
+
+      <div class="centerCol">
+        <section class="card previewCard">
+          <header class="cardHead">
+            <el-icon class="liveIcon"><VideoPlay /></el-icon>
+            <span>直播预览</span>
+          </header>
+          <div ref="playerRef" class="player">
+            <img class="stream" :src="streamCover" alt="直播间画面" />
+            <div class="controlBar">
+              <div class="progress" @click="seek">
+                <i :style="{ width: `${(progress / DURATION) * 100}%` }"></i>
+              </div>
+              <button type="button" class="playBtn" :title="playing ? '暂停' : '播放'" @click="togglePlay">
+                <el-icon v-if="playing"><VideoPause /></el-icon>
+                <el-icon v-else><VideoPlay /></el-icon>
+              </button>
+              <span class="time">{{ timeText }}/{{ durationText }}</span>
+              <div class="controlRight">
+                <button type="button" class="pill" @click="capture">截图</button>
+                <button type="button" class="pill" @click="toggleSpeed">{{ speed }}x</button>
+                <button type="button" class="plainBtn" :title="muted ? '取消静音' : '静音'" @click="muted = !muted">
+                  <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true">
+                    <path d="M4 9.5v5h3.2L12 18V6L7.2 9.5H4z" fill="currentColor" />
+                    <path
+                      v-if="!muted"
+                      d="M15.4 8.6a4.6 4.6 0 0 1 0 6.8M18 6.4a8 8 0 0 1 0 11.2"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.7"
+                      stroke-linecap="round"
+                    />
+                    <path
+                      v-else
+                      d="M15.6 9.4l4.8 5.2M20.4 9.4l-4.8 5.2"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.7"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                </button>
+                <button type="button" class="plainBtn" title="全屏" @click="enterFullscreen">
+                  <el-icon><FullScreen /></el-icon>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card modeCard">
+          <header class="cardHead">
+            <el-icon class="liveIcon"><VideoCamera /></el-icon>
+            <span>直播方式</span>
+          </header>
+          <div class="modeTabs">
+            <button
+              v-for="item in modeOptions"
+              :key="item"
+              type="button"
+              class="modeTab"
+              :class="{ active: activeMode === item }"
+              @click="activeMode = item"
+            >
+              {{ item }}
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <aside class="sideCol">
+        <section class="card actionsCard">
+          <header class="cardHead">
+            <el-icon class="liveIcon"><MagicStick /></el-icon>
+            <span>快捷操作</span>
+          </header>
+          <div class="actionList">
+            <button type="button" class="actionBtn" @click="switchQuality">切换清晰度</button>
+            <button type="button" class="actionBtn" @click="switchStream">主备流切换</button>
+            <button type="button" class="actionBtn" @click="switchPadding">推流垫片</button>
+          </div>
+        </section>
+
+        <section class="card statusCard">
+          <header class="cardHead">
+            <el-icon class="liveIcon"><Odometer /></el-icon>
+            <span>直播状态</span>
+          </header>
+          <div class="statusBody">
+            <template v-for="stream in streams" :key="stream.name">
+              <div class="statusDivider"><span>{{ stream.name }}</span></div>
+              <div class="streamRow">
+                <span>码率 {{ stream.bitrate }}</span>
+                <span>帧率 {{ stream.fps }}</span>
+              </div>
+            </template>
+
+            <div class="statusDivider"><span>画面信息</span></div>
+            <div class="infoGrid">
+              <div class="infoItem"><span>线路</span><strong>{{ activeStream }}</strong></div>
+              <div class="infoItem"><span>CDN</span><strong>{{ cdn }}</strong></div>
+              <div class="infoItem"><span>播放格式</span><strong>{{ playFormat }}</strong></div>
+              <div class="infoItem"><span>画质</span><strong>{{ quality }}</strong></div>
+            </div>
+          </div>
+        </section>
+      </aside>
     </div>
+    <Footer />
+  </div>
 </template>
 
 <style scoped>
 .content {
-    width: 100%;
-    height: 88%;
-    padding: 18px;
-    box-sizing: border-box;
-    overflow-y: auto;
-    overflow-x: hidden;
-    background-color: var(--app-surface-mute);
+  width: 100%;
+  height: 88%;
+  padding: 16px 18px 0;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background-color: var(--app-surface-mute);
 }
 
 .content::-webkit-scrollbar {
-    width: 6px;
+  width: 6px;
 }
 
 .content::-webkit-scrollbar-thumb {
-    border-radius: 5px;
-    background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 5px;
+  background-color: rgba(0, 0, 0, 0.16);
 }
 
 .content::-webkit-scrollbar-track {
-    background: transparent;
+  background: transparent;
 }
 
-.main {
-    display: grid;
-    grid-template-columns: minmax(240px, 0.95fr) minmax(360px, 2fr) minmax(220px, 0.9fr);
-    gap: 18px;
-    height: calc(100% - 2px);
-    min-height: 540px;
+.monitorGrid {
+  display: grid;
+  grid-template-columns: minmax(250px, 21fr) minmax(0, 60fr) minmax(250px, 19fr);
+  gap: 16px;
+  align-items: stretch;
 }
 
-.left,
-.center,
-.right {
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-    min-width: 0;
-    min-height: 0;
+.card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--app-border-quiet);
+  border-radius: 6px;
+  background-color: var(--app-surface);
 }
 
-.panel {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    border-radius: 10px;
-    background-color: var(--app-surface);
-    box-shadow: 0 2px 8px rgba(47, 58, 74, 0.06);
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  height: 52px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--app-surface-line);
+  color: var(--app-text-body);
+  font-size: 15px;
+  font-weight: 500;
 }
 
-.title {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    flex-shrink: 0;
-    height: 52px;
-    padding: 0 18px;
-    box-sizing: border-box;
-    color: var(--app-text);
-    font-size: 14px;
-    font-weight: 500;
-    border-bottom: 1px solid #eef1f5;
+.liveIcon {
+  color: #c56ad6;
+  font-size: 16px;
 }
 
-.title .count {
-    padding: 1px 8px;
-    border-radius: 9px;
-    color: var(--app-primary);
-    font-size: 11px;
-    font-weight: 400;
-    background-color: var(--app-primary-soft);
+.chatCard {
+  min-height: 560px;
 }
 
-.left .comment {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    padding: 14px 16px 16px;
+.chatBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  gap: 10px;
+  padding: 14px 16px 16px;
 }
 
-.left .search {
-    flex-shrink: 0;
-    padding-bottom: 12px;
+.chatTools {
+  flex-shrink: 0;
 }
 
-.left .search .select {
-    width: 120px;
+.chatFilter {
+  width: 112px;
 }
 
-.left .commentContent {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
+.chatFilter :deep(.el-select__wrapper) {
+  min-height: 32px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px var(--app-border) inset;
 }
 
-.left .commentContent::-webkit-scrollbar {
-    width: 5px;
+.msgList {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 2px 4px 2px 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  list-style: none;
 }
 
-.left .commentContent::-webkit-scrollbar-thumb {
-    border-radius: 3px;
-    background: #dfe4eb;
+.msgList::-webkit-scrollbar {
+  width: 5px;
 }
 
-.left .commentContent ul {
-    margin: 0;
-    padding: 0;
-    list-style: none;
+.msgList::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background-color: var(--app-border-strong);
 }
 
-.left .commentContent li {
-    margin-bottom: 10px;
-    padding: 12px;
-    border-radius: 8px;
-    background-color: var(--app-surface-bright);
-    transition: background-color 0.2s;
+.msgList::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-.left .commentContent li:hover {
-    background-color: #effafd;
+.msgItem {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 4px 9px;
+  border-radius: 5px;
+  transition: background-color 0.18s ease;
 }
 
-.left .commentContent .msgTop {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 4px;
+.msgItem:hover {
+  background-color: var(--app-surface-quiet);
 }
 
-.left .commentContent .user {
-    color: #b9772f;
-    font-size: 12px;
-    font-weight: 500;
+.msgUser {
+  color: #e6a23c;
+  font-size: 13px;
 }
 
-.left .commentContent .type {
-    padding: 0 6px;
-    border-radius: 4px;
-    font-size: 10px;
-    line-height: 16px;
+.msgText {
+  margin: 0;
+  color: var(--app-text-base);
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-word;
 }
 
-.left .commentContent .type.提问 {
-    color: var(--app-primary-strong);
-    background-color: var(--app-primary-soft);
+.msgTime {
+  color: var(--app-text-muted);
+  font-size: 12px;
+  letter-spacing: 0.5px;
 }
 
-.left .commentContent .type.订单 {
-    color: #1f7a4d;
-    background-color: #e6fbef;
+.msgEmpty {
+  padding: 18px 4px;
+  color: var(--app-text-muted);
+  font-size: 12px;
+  text-align: center;
 }
 
-.left .commentContent .type.系统 {
-    color: var(--app-text-secondary);
-    background-color: #eef1f5;
+.composer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
-.left .commentContent .time {
-    margin-left: auto;
-    color: var(--app-text-ghost);
-    font-size: 11px;
+.composer input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
+  outline: none;
+  color: var(--app-text-body);
+  font-size: 13px;
+  background-color: var(--app-surface);
+  transition: border-color 0.18s ease;
 }
 
-.left .commentContent p {
-    margin: 0;
-    color: #4b5157;
-    font-size: 13px;
-    line-height: 1.6;
-    word-break: break-word;
+.composer input:focus {
+  border-color: var(--app-primary);
 }
 
-.left .send {
-    display: flex;
-    gap: 10px;
-    flex-shrink: 0;
-    padding-top: 12px;
+.composer input::placeholder {
+  color: var(--app-text-placeholder);
 }
 
-.left .send input {
-    flex: 1;
-    min-width: 0;
-    height: 34px;
-    padding: 0 10px;
-    border: 1px solid #dfe4eb;
-    border-radius: 6px;
-    outline: none;
-    color: var(--app-text-body);
-    font-size: 13px;
-    transition: border-color 0.2s;
+.composer button {
+  flex-shrink: 0;
+  width: 64px;
+  height: 36px;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 13px;
+  letter-spacing: 1px;
+  background-color: var(--app-primary);
+  cursor: pointer;
+  transition: background-color 0.18s ease, opacity 0.18s ease;
 }
 
-.left .send input:focus {
-    border-color: var(--app-primary);
+.composer button:hover:not(:disabled) {
+  background-color: var(--app-primary-strong);
 }
 
-.left .send button {
-    flex-shrink: 0;
-    width: 72px;
-    height: 36px;
-    border: none;
-    border-radius: 8px;
-    color: var(--app-primary-strong);
-    font-size: 13px;
-    background-color: transparent;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12), 0 4px 10px rgba(15, 23, 42, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.9);
-    cursor: pointer;
-    transition: box-shadow 0.2s, transform 0.2s, color 0.2s;
+.composer button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
-.left .send button:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(15, 23, 42, 0.14), 0 8px 18px rgba(15, 23, 42, 0.12),
-        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+.centerCol {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
 }
 
-.left .send button:active {
-    transform: translateY(0);
-    box-shadow: inset 0 2px 5px rgba(15, 23, 42, 0.18);
+.previewCard {
+  flex: 1;
 }
 
-.center .monitor {
-    flex: 1;
-    min-height: 240px;
+.player {
+  position: relative;
+  flex: 1;
+  min-height: 300px;
+  overflow: hidden;
+  background-color: #000;
 }
 
-.liveBadge {
-    padding: 2px 10px;
-    border-radius: 10px;
-    color: #fff;
-    font-size: 11px;
-    font-weight: 400;
-    background-color: #f56c6c;
-    letter-spacing: 1px;
+.stream {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-.liveBadge.off {
-    background-color: var(--app-text-muted);
+.controlBar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 12px 8px;
+  color: #fff;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.58));
 }
 
-.video {
-    position: relative;
-    flex: 1;
-    min-height: 200px;
-    margin: 16px;
-    overflow: hidden;
-    border-radius: 8px;
-    background: radial-gradient(circle at 30% 30%, #2f4b78 0%, #16263d 55%, #0e1826 100%);
+.progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: rgba(255, 255, 255, 0.3);
+  cursor: pointer;
 }
 
-.video .glow {
-    position: absolute;
-    top: -30%;
-    right: -10%;
-    width: 60%;
-    height: 80%;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(78, 136, 243, 0.45), transparent 65%);
-    animation: breathe 4s ease-in-out infinite;
-}
-
-.video.paused .glow {
-    animation-play-state: paused;
-    opacity: 0.4;
-}
-
-.videoMeta {
-    position: absolute;
-    top: 12px;
-    left: 12px;
-    right: 12px;
-    display: flex;
-    justify-content: space-between;
-    color: rgba(255, 255, 255, 0.85);
-    font-size: 12px;
-}
-
-.videoMeta span {
-    padding: 2px 8px;
-    border-radius: 4px;
-    background-color: rgba(0, 0, 0, 0.28);
+.progress i {
+  display: block;
+  height: 100%;
+  background-color: var(--app-primary);
+  transition: width 0.4s linear;
 }
 
 .playBtn {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    height: 42px;
-    padding: 0 24px;
-    border: none;
-    border-radius: 21px;
-    color: #fff;
-    font-size: 14px;
-    background-color: transparent;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35), 0 10px 24px rgba(0, 0, 0, 0.3),
-        inset 0 1px 0 rgba(255, 255, 255, 0.55);
-    cursor: pointer;
-    transition: box-shadow 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  color: #fff;
+  font-size: 18px;
+  background: none;
+  cursor: pointer;
 }
 
-.playBtn:hover {
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4), 0 14px 30px rgba(0, 0, 0, 0.35),
-        inset 0 1px 0 rgba(255, 255, 255, 0.7);
+.time {
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  color: rgba(255, 255, 255, 0.92);
 }
 
-.playBtn:active {
-    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.45);
+.controlRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
 }
 
-.videoHint {
-    position: absolute;
-    bottom: 12px;
-    left: 50%;
-    transform: translateX(-50%);
-    color: rgba(255, 255, 255, 0.6);
-    font-size: 11px;
-    white-space: nowrap;
+.pill {
+  padding: 3px 10px;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 12px;
+  background-color: rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+  transition: background-color 0.18s ease;
 }
 
-.center .methods {
-    flex-shrink: 0;
+.pill:hover {
+  background-color: rgba(255, 255, 255, 0.3);
 }
 
-.methodChoose {
-    padding: 16px 18px 18px;
+.plainBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  color: #fff;
+  font-size: 16px;
+  background: none;
+  cursor: pointer;
+  opacity: 0.92;
+  transition: opacity 0.18s ease;
 }
 
-.methodChoose ul {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
+.plainBtn:hover {
+  opacity: 1;
 }
 
-.methodChoose li {
-    padding: 8px 16px;
-    color: var(--app-text-secondary);
-    font-size: 13px;
-    border: none;
-    border-radius: 16px;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.1), 0 4px 8px rgba(15, 23, 42, 0.07),
-        inset 0 1px 0 rgba(255, 255, 255, 0.9);
-    cursor: pointer;
-    transition: color 0.2s, box-shadow 0.2s, transform 0.2s;
+.controlBar button:focus-visible,
+.modeTab:focus-visible,
+.actionBtn:focus-visible,
+.composer button:focus-visible {
+  outline: none;
 }
 
-.methodChoose li:first-child,
-.methodChoose li:last-child {
-    border-radius: 16px;
+.modeTabs {
+  display: flex;
+  padding: 14px 18px 16px;
 }
 
-.methodChoose li:hover {
-    color: var(--app-primary-strong);
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(15, 23, 42, 0.12), 0 8px 16px rgba(15, 23, 42, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+.modeTab {
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid var(--app-border);
+  color: var(--app-text-subtle);
+  font-size: 13px;
+  background-color: var(--app-surface);
+  cursor: pointer;
+  transition: color 0.18s ease, background-color 0.18s ease, border-color 0.18s ease;
 }
 
-.methodChoose li.active {
-    color: var(--app-primary-strong);
-    font-weight: 500;
-    box-shadow: inset 0 2px 5px rgba(15, 23, 42, 0.16);
+.modeTab + .modeTab {
+  border-left: none;
 }
 
-.methodChoose p {
-    margin: 12px 0 0;
-    color: var(--app-text-soft);
-    font-size: 12px;
-    line-height: 1.6;
+.modeTab:first-child {
+  border-radius: 4px 0 0 4px;
 }
 
-.right .actions .choose {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding: 14px 18px 18px;
+.modeTab:last-child {
+  border-radius: 0 4px 4px 0;
 }
 
-.right .actions .choose button {
-    height: 38px;
-    padding: 0 16px;
-    border: none;
-    border-radius: 8px;
-    color: var(--app-primary-strong);
-    font-size: 13px;
-    text-align: left;
-    background-color: transparent;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12), 0 4px 10px rgba(15, 23, 42, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.9);
-    cursor: pointer;
-    transition: color 0.2s, box-shadow 0.2s, transform 0.2s;
+.modeTab:hover {
+  color: var(--app-primary);
 }
 
-.right .actions .choose button:hover {
-    color: var(--app-primary-strong);
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(15, 23, 42, 0.14), 0 8px 18px rgba(15, 23, 42, 0.12),
-        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+.modeTab.active {
+  border-color: var(--app-primary);
+  color: #fff;
+  background-color: var(--app-primary);
 }
 
-.right .actions .choose button:active {
-    transform: translateY(0);
-    box-shadow: inset 0 2px 5px rgba(15, 23, 42, 0.18);
+.sideCol {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
 }
 
-.right .status {
-    flex: 1;
-    min-height: 0;
+.actionsCard {
+  flex-shrink: 0;
 }
 
-.statusList {
-    margin: 0;
-    padding: 8px 18px 0;
-    list-style: none;
+.actionList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 18px 16px;
 }
 
-.statusList li {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 0;
-    border-bottom: 1px dashed #eef1f5;
-    font-size: 13px;
+.actionBtn {
+  height: 40px;
+  border: none;
+  border-radius: 4px;
+  color: var(--app-primary);
+  font-size: 13px;
+  background-color: color-mix(in srgb, var(--app-primary) 8%, var(--app-surface));
+  cursor: pointer;
+  transition: background-color 0.18s ease;
 }
 
-.statusList li:last-child {
-    border-bottom: none;
+.actionBtn:hover {
+  background-color: color-mix(in srgb, var(--app-primary) 15%, var(--app-surface));
 }
 
-.statusList span {
-    color: var(--app-text-soft);
+.statusCard {
+  flex: 1;
 }
 
-.statusList strong {
-    color: var(--app-text);
-    font-weight: 500;
+.statusBody {
+  padding: 6px 18px 18px;
 }
 
-.right .status .refresh {
-    margin: 12px 18px 18px;
-    height: 36px;
-    border: none;
-    border-radius: 8px;
-    color: var(--app-text-subtle);
-    font-size: 13px;
-    background-color: transparent;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12), 0 4px 10px rgba(15, 23, 42, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.9);
-    cursor: pointer;
-    transition: color 0.2s, box-shadow 0.2s, transform 0.2s;
+.statusDivider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 10px;
+  color: var(--app-text-secondary);
+  font-size: 13px;
 }
 
-.right .status .refresh:hover {
-    color: var(--app-primary-strong);
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(15, 23, 42, 0.14), 0 8px 18px rgba(15, 23, 42, 0.12),
-        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+.statusDivider::before,
+.statusDivider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background-color: var(--app-border-quiet);
 }
 
-.right .status .refresh:active {
-    transform: translateY(0);
-    box-shadow: inset 0 2px 5px rgba(15, 23, 42, 0.18);
+.streamRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 6px;
+  color: var(--app-text-subtle);
+  font-size: 13px;
 }
 
-@keyframes breathe {
-    0%,
-    100% {
-        transform: scale(1);
-        opacity: 0.55;
-    }
+.infoGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 18px;
+  padding: 0 6px 2px;
+}
 
-    50% {
-        transform: scale(1.15);
-        opacity: 0.9;
-    }
+.infoItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--app-text-subtle);
+  font-size: 13px;
+}
+
+.infoItem strong {
+  color: var(--app-text-body);
+  font-weight: 500;
 }
 
 @media (max-width: 1200px) {
-    .main {
-        grid-template-columns: 1fr;
-        height: auto;
-    }
+  .monitorGrid {
+    grid-template-columns: minmax(260px, 1fr) minmax(0, 2fr);
+  }
 
-    .left {
-        height: 420px;
-    }
+  .sideCol {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: stretch;
+  }
 
-    .center .monitor {
-        min-height: 320px;
-    }
-
-    .right {
-        flex-direction: row;
-    }
-
-    .right .actions,
-    .right .status {
-        flex: 1;
-        min-height: 220px;
-    }
+  .actionsCard,
+  .statusCard {
+    flex: 1;
+  }
 }
 
-@media (max-width: 768px) {
-    .right {
-        flex-direction: column;
-    }
+@media (max-width: 760px) {
+  .monitorGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 
-    .right .actions,
-    .right .status {
-        min-height: 0;
-    }
+  .chatCard {
+    min-height: 420px;
+  }
 
-    .videoHint {
-        display: none;
-    }
+  .sideCol {
+    grid-column: auto;
+    flex-direction: column;
+  }
+
+  .player {
+    min-height: 220px;
+  }
 }
 
-@media (max-width: 576px) {
-    .content {
-        padding: 12px;
-    }
-
-    .left {
-        height: 380px;
-    }
-
-    .methodChoose li {
-        flex: 1;
-        padding: 6px 8px;
-        text-align: center;
-    }
+@media (prefers-reduced-motion: reduce) {
+  .msgItem,
+  .pill,
+  .modeTab,
+  .actionBtn,
+  .progress i {
+    transition: none;
+  }
 }
 </style>

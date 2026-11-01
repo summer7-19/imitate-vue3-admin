@@ -265,7 +265,7 @@ function openAssistant() {
 onMounted(() => {
     document.addEventListener('fullscreenchange', syncFullscreen)
     syncFullscreen()
-    if (userStore.accessToken && !userStore.username) {
+    if (userStore.accessToken && !userStore.permissions.length) {
         userStore.getUserInfo().catch(() => {})
     }
 })
@@ -294,7 +294,7 @@ onBeforeUnmount(() => {
                         <button v-for="item in gridItems" :key="item.path" type="button" class="gridItem"
                             :class="{ active: item.path === route.path }" @click="goGrid(item)">
                             <span class="gridTitle">{{ item.title }}</span>
-                            <span class="gridPath">{{ item.path }}</span>
+                            <!-- <span class="gridPath">{{ item.path }}</span> -->
                         </button>
                     </div>
                 </el-popover>
@@ -464,7 +464,6 @@ onBeforeUnmount(() => {
         </div>
 
         <nav ref="trailRef" class="sideBarShow" aria-label="浏览路径">
-            <span class="trailLabel">浏览路径</span>
             <template v-for="(item, index) in history" :key="item.path">
                 <span v-if="index" class="trailSep" aria-hidden="true">/</span>
                 <button
@@ -729,7 +728,7 @@ onBeforeUnmount(() => {
     cursor: default;
 }
 
-.header .right .iconBtn {
+.header .iconBtn {
     width: 34px;
     height: 34px;
     display: flex;
@@ -745,24 +744,24 @@ onBeforeUnmount(() => {
     transition: transform 0.18s ease, color 0.18s ease;
 }
 
-.header .right .iconBtn:hover {
+.header .iconBtn:hover {
     color: var(--app-primary);
     transform: translateY(-1px);
 }
 
-.header .right .iconBtn:active {
+.header .iconBtn:active {
     transform: translateY(0);
 }
 
 /* element-plus 的 reset 里有 button:focus-visible{outline:2px solid 主色}，点击后会留下描边 */
-.header .right .iconBtn:focus,
-.header .right .iconBtn:focus-visible {
+.header .iconBtn:focus,
+.header .iconBtn:focus-visible {
     outline: none;
     border: none;
     box-shadow: none;
 }
 
-.header .right .iconBtn.spinning .el-icon {
+.header .iconBtn.spinning .el-icon {
     animation: btn-spin 0.8s linear infinite;
 }
 
@@ -872,9 +871,9 @@ onBeforeUnmount(() => {
 
 .option {
     flex: 0 0 auto;
-    min-width: 70px;
+    min-width: 60px;
     height: 30px;
-    padding: 0 16px;
+    padding: 0 10px;
     color: var(--app-primary);
     font-size: 12px;
     border: none;
@@ -893,8 +892,7 @@ onBeforeUnmount(() => {
     transform: translateY(-1px);
     box-shadow:
         0 2px 4px rgba(15, 23, 42, 0.12),
-        0 8px 16px rgba(15, 23, 42, 0.1),
-        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+        0 8px 16px rgba(15, 23, 42, 0.1);
 }
 
 .option.active {
@@ -909,7 +907,9 @@ onBeforeUnmount(() => {
     min-width: 0;
     font-size: 12px;
 }
-
+.header .left .crumbs :deep(.el-breadcrumb__item) {
+    float: none;
+}
 .header .left .crumbs :deep(.el-breadcrumb__separator) {
     margin: 0 6px;
     color: var(--app-text-ghost);
@@ -934,7 +934,7 @@ onBeforeUnmount(() => {
 
 .crumbCurrent {
     padding: 2px 4px;
-    color: var(--app-text);
+    /* color: var(--app-text); */
     font-size: 12px;
     font-weight: 600;
 }
@@ -958,19 +958,20 @@ onBeforeUnmount(() => {
 .appGrid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
+    gap: 12px;
 }
 
 .gridItem {
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 3px;
+    flex-direction: row;
+    justify-content: center;
+    gap: 5px;
     padding: 8px;
     overflow: hidden;
     color: var(--app-text);
     border: 1px solid var(--app-border-quiet);
-    border-radius: 8px;
+    border-radius: 5px;
+    box-shadow: 0px 2px 1px var(--app-border-quiet);
     background-color: var(--app-surface);
     cursor: pointer;
     transition: transform 0.16s ease, border-color 0.16s ease, background-color 0.16s ease;
@@ -996,14 +997,14 @@ onBeforeUnmount(() => {
     white-space: nowrap;
 }
 
-.gridPath {
+ /* .gridPath{
     max-width: 100%;
     overflow: hidden;
     color: var(--app-text-muted);
     font-size: 10px;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
+} */
 
 .themePanel {
     display: flex;

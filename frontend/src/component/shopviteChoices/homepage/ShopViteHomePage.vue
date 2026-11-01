@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Histogram, TrendCharts } from '@element-plus/icons-vue'
 import pkg from '../../../../package.json'
 import Footer from '../footer/footer.vue'
 
@@ -59,47 +60,115 @@ const sellCards = [
     },
 ]
 
-const traffic = [
-    { day: '周一', value: 46 },
-    { day: '周二', value: 62 },
-    { day: '周三', value: 55 },
-    { day: '周四', value: 74 },
-    { day: '周五', value: 88 },
-    { day: '周六', value: 96 },
-    { day: '周日', value: 70 },
-]
+const trafficSets = {
+    day: {
+        mode: '日',
+        labels: ['2023/11/4', '2023/11/5', '2023/11/6', '2023/11/7', '2023/11/8'],
+        values: [3800, 3500, 3050, 3900, 2667],
+    },
+    week: {
+        mode: '周',
+        labels: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+        values: [3100, 2860, 3420, 3180, 3700, 3960, 2860],
+    },
+}
+const trafficMode = ref('day')
+const trafficSet = computed(() => trafficSets[trafficMode.value])
+const trafficActive = ref(null)
 
-const authLegend = [
-    { name: '正式授权', percent: 72, tone: 'blue' },
-    { name: '试用授权', percent: 18, tone: 'green' },
-    { name: '待激活', percent: 10, tone: 'orange' },
-]
+const AUTH_LABELS = ['0时', '2时', '4时', '6时', '8时', '10时', '12时', '14时', '16时', '18时', '20时', '22时', '24时']
+const authSets = {
+    week: { mode: '周', values: [10, 38, 52, 34, 20, 24, 33, 37, 39, 37, 34, 27, 21] },
+    day: { mode: '日', values: [8, 30, 47, 31, 18, 22, 29, 34, 36, 33, 30, 25, 19] },
+}
+const authMode = ref('week')
+const authSet = computed(() => authSets[authMode.value])
+const authCountdown = ref(10)
 
-const authDonutStyle = computed(() => ({
-    background: 'conic-gradient(#4e88f3 0% 72%, #34c38f 72% 90%, #f0a04b 90% 100%)',
-}))
+const CHART = { width: 660, height: 240, left: 52, right: 26, top: 14, bottom: 30 }
 
-const trafficHostRef = ref(null)
-const trafficTip = ref({ show: false, x: 0, y: 0, text: '' })
-const TIP_HALF_WIDTH = 36
-const TIP_HEIGHT = 26
+const smoothPath = (points) => {
+    let d = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`
+    for (let i = 0; i < points.length - 1; i += 1) {
+        const p0 = points[i - 1] || points[i]
+        const p1 = points[i]
+        const p2 = points[i + 1]
+        const p3 = points[i + 2] || p2
+        const c1x = p1.x + (p2.x - p0.x) / 6
+        const c1y = p1.y + (p2.y - p0.y) / 6
+        const c2x = p2.x - (p3.x - p1.x) / 6
+        const c2y = p2.y - (p3.y - p1.y) / 6
+        d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`
+    }
+    return d
+}
 
-function moveTrafficTip(event, item) {
-    const host = trafficHostRef.value
-    if (!host) return
-    const rect = host.getBoundingClientRect()
-    const x = event.clientX - rect.left
-    const y = event.clientY - rect.top
-    trafficTip.value = {
-        show: true,
-        x: Math.min(Math.max(x, TIP_HALF_WIDTH), rect.width - TIP_HALF_WIDTH),
-        y: Math.max(y, TIP_HEIGHT),
-        text: `${item.day} · ${item.value}%`,
+function buildChart(values, labels, max, tickStep, labelStep) {
+    const plotWidth = CHART.width - CHART.left - CHART.right
+    const plotHeight = CHART.height - CHART.top - CHART.bottom
+    const gap = labels.length > 1 ? plotWidth / (labels.length - 1) : plotWidth
+    const xAt = (index) => CHART.left + index * gap
+    const yAt = (value) => CHART.top + (1 - value / max) * plotHeight
+    const points = values.map((value, index) => ({
+        x: xAt(index),
+        y: yAt(value),
+        label: labels[index],
+        value,
+        hitX: index === 0 ? CHART.left : xAt(index) - gap / 2,
+        hitWidth: index === 0 || index === values.length - 1 ? gap / 2 : gap,
+    }))
+    const line = smoothPath(points)
+    const baseline = yAt(0)
+    const yTicks = []
+    for (let value = 0; value <= max; value += tickStep) {
+        yTicks.push({ label: value.toLocaleString('en-US'), y: yAt(value) })
+    }
+    const xTicks = points
+        .map((point, index) => ({
+            x: point.x,
+            label: point.label,
+            anchor: index === 0 ? 'start' : index === points.length - 1 ? 'end' : 'middle',
+        }))
+        .filter((_, index) => index % labelStep === 0)
+    return {
+        points,
+        line,
+        area: `${line} L ${points[points.length - 1].x.toFixed(1)} ${baseline.toFixed(1)} L ${points[0].x.toFixed(1)} ${baseline.toFixed(1)} Z`,
+        yTicks,
+        xTicks,
+        baseline,
     }
 }
 
-function hideTrafficTip() {
-    trafficTip.value.show = false
+const trafficChart = computed(() =>
+    buildChart(trafficSet.value.values, trafficSet.value.labels, 4000, 1000, 1)
+)
+const authChart = computed(() => buildChart(authSet.value.values, AUTH_LABELS, 60, 10, 2))
+const authDots = computed(() => authChart.value.points.filter((_, index) => index % 2 === 0))
+
+const trafficActivePoint = computed(() =>
+    trafficActive.value === null ? null : trafficChart.value.points[trafficActive.value]
+)
+
+const trafficTipStyle = computed(() => {
+    if (trafficActive.value === null) return null
+    const { points } = trafficChart.value
+    const point = points[trafficActive.value]
+    const flip = trafficActive.value >= points.length - 2
+    return {
+        left: `${(point.x / CHART.width) * 100}%`,
+        top: `${(point.y / CHART.height) * 100}%`,
+        transform: flip ? 'translate(-106%, -118%)' : 'translate(6%, -118%)',
+    }
+})
+
+function toggleTrafficMode() {
+    trafficMode.value = trafficMode.value === 'day' ? 'week' : 'day'
+    trafficActive.value = null
+}
+
+function toggleAuthMode() {
+    authMode.value = authMode.value === 'week' ? 'day' : 'week'
 }
 
 const sellProgress = ref(0)
@@ -122,6 +191,8 @@ const cardValues = computed(() =>
     sellCards.map((card) => formatCardValue(card, sellProgress.value))
 )
 
+let countdownTimer = 0
+
 onMounted(() => {
     const duration = 900
     const start = performance.now()
@@ -131,9 +202,15 @@ onMounted(() => {
         if (t < 1) sellRaf = requestAnimationFrame(tick)
     }
     sellRaf = requestAnimationFrame(tick)
+    countdownTimer = window.setInterval(() => {
+        authCountdown.value = authCountdown.value > 1 ? authCountdown.value - 1 : 10
+    }, 1000)
 })
 
-onBeforeUnmount(() => cancelAnimationFrame(sellRaf))
+onBeforeUnmount(() => {
+    cancelAnimationFrame(sellRaf)
+    window.clearInterval(countdownTimer)
+})
 
 function notifyPurchase(name) {
     ElMessage.success(`已选择 ${name}，演示环境不会产生真实订单`)
@@ -185,9 +262,7 @@ function notifyPurchase(name) {
                 <div class="content">
                     <ul>
                         <li class="message">
-                            <div class="left">
-
-                            </div>
+                            <div class="left"> </div>
                             <div class="right">
                                 <div class="top">
                                     <span
@@ -395,67 +470,177 @@ function notifyPurchase(name) {
         <div class="appMsg">
             <div class="mainSituation">
                 <div class="title">
-                    <span>流量概况</span>
+                    <span class="titleMain">
+                        <el-icon><TrendCharts /></el-icon>
+                        流量概况
+                    </span>
+                    <button type="button" class="periodChip green" @click="toggleTrafficMode">
+                        {{ trafficSet.mode }}
+                    </button>
                 </div>
-                <div ref="trafficHostRef" class="content">
-                    <div class="trafficChart">
-                        <div
-                            v-for="item in traffic"
-                            :key="item.day"
-                            class="trafficCol"
-                            @mousemove="moveTrafficTip($event, item)"
-                            @mouseleave="hideTrafficTip"
+                <div class="content">
+                    <div class="chartHost">
+                        <svg
+                            class="chartSvg"
+                            :viewBox="`0 0 ${CHART.width} ${CHART.height}`"
+                            role="img"
+                            aria-label="流量概况趋势"
+                            @mouseleave="trafficActive = null"
                         >
-                            <div class="trafficTrack">
-                                <div class="trafficFill" :style="{ height: `${item.value}%` }"></div>
+                            <defs>
+                                <linearGradient id="trafficArea" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stop-color="#a6d7f7" stop-opacity="0.9" />
+                                    <stop offset="100%" stop-color="#dceffb" stop-opacity="0.35" />
+                                </linearGradient>
+                            </defs>
+                            <line
+                                class="axisLine"
+                                :x1="CHART.left"
+                                :x2="CHART.width - CHART.right"
+                                :y1="trafficChart.baseline"
+                                :y2="trafficChart.baseline"
+                            />
+                            <path :d="trafficChart.area" fill="url(#trafficArea)" />
+                            <path class="lineStroke" :d="trafficChart.line" fill="none" />
+                            <line
+                                v-if="trafficActivePoint"
+                                class="hoverLine"
+                                :x1="trafficActivePoint.x"
+                                :x2="trafficActivePoint.x"
+                                :y1="CHART.top"
+                                :y2="trafficChart.baseline"
+                            />
+                            <circle
+                                v-for="point in trafficChart.points"
+                                :key="`dot-${point.label}`"
+                                class="dot"
+                                :cx="point.x"
+                                :cy="point.y"
+                                r="3"
+                            />
+                            <circle
+                                v-if="trafficActivePoint"
+                                class="dot activeDot"
+                                :cx="trafficActivePoint.x"
+                                :cy="trafficActivePoint.y"
+                                r="4"
+                            />
+                            <g class="yAxis">
+                                <text
+                                    v-for="tick in trafficChart.yTicks"
+                                    :key="`y-${tick.label}`"
+                                    :x="CHART.left - 10"
+                                    :y="tick.y + 3.5"
+                                    text-anchor="end"
+                                >
+                                    {{ tick.label }}
+                                </text>
+                            </g>
+                            <g class="xAxis">
+                                <text
+                                    v-for="tick in trafficChart.xTicks"
+                                    :key="`x-${tick.label}`"
+                                    :x="tick.x"
+                                    :y="CHART.height - 8"
+                                    :text-anchor="tick.anchor"
+                                >
+                                    {{ tick.label }}
+                                </text>
+                            </g>
+                            <rect
+                                v-for="(point, index) in trafficChart.points"
+                                :key="`hit-${point.label}`"
+                                :x="point.hitX"
+                                :y="CHART.top"
+                                :width="point.hitWidth"
+                                :height="trafficChart.baseline - CHART.top"
+                                fill="transparent"
+                                @mouseenter="trafficActive = index"
+                            />
+                        </svg>
+                        <div v-if="trafficActivePoint" class="chartTip" :style="trafficTipStyle">
+                            <span class="tipDate">{{ trafficActivePoint.label }}</span>
+                            <div class="tipRow">
+                                <i></i>
+                                <span>浏览量</span>
+                                <strong>{{ trafficActivePoint.value.toLocaleString('en-US') }}</strong>
                             </div>
-                            <span>{{ item.day }}</span>
                         </div>
                     </div>
-                    <span
-                        v-if="trafficTip.show"
-                        class="trafficTip"
-                        :style="{ left: `${trafficTip.x}px`, top: `${trafficTip.y}px` }"
-                    >{{ trafficTip.text }}</span>
                 </div>
                 <div class="footer">
                     <div class="left">
                         <span>自上周以来
-                            <span>提升44%</span>
+                            <span>提升 44%</span>
                         </span>
-                    </div>
-                    <div class="right">
-                        <span>+13.8%</span>
                     </div>
                 </div>
             </div>
             <div class="getPower">
                 <div class="title">
-                    <span>授权概况</span>
+                    <span class="titleMain">
+                        <el-icon><Histogram /></el-icon>
+                        授权数
+                    </span>
+                    <button type="button" class="periodChip orange" @click="toggleAuthMode">
+                        {{ authSet.mode }}
+                    </button>
                 </div>
                 <div class="content">
-                    <div class="authWrap">
-                        <div class="authDonut" :style="authDonutStyle">
-                            <div class="authHole">
-                                <strong>18,148</strong>
-                                <span>累计授权</span>
-                            </div>
-                        </div>
-                        <ul class="authLegend">
-                            <li v-for="item in authLegend" :key="item.name">
-                                <i :class="item.tone"></i>
-                                <span>{{ item.name }}</span>
-                                <strong>{{ item.percent }}%</strong>
-                            </li>
-                        </ul>
+                    <div class="chartHost">
+                        <svg
+                            class="chartSvg"
+                            :viewBox="`0 0 ${CHART.width} ${CHART.height}`"
+                            role="img"
+                            aria-label="授权数趋势"
+                        >
+                            <line
+                                class="axisLine"
+                                :x1="CHART.left"
+                                :x2="CHART.width - CHART.right"
+                                :y1="authChart.baseline"
+                                :y2="authChart.baseline"
+                            />
+                            <path class="lineStroke authStroke" :d="authChart.line" fill="none" />
+                            <circle
+                                v-for="point in authDots"
+                                :key="`auth-${point.label}`"
+                                class="dot"
+                                :cx="point.x"
+                                :cy="point.y"
+                                r="3"
+                            />
+                            <g class="yAxis">
+                                <text
+                                    v-for="tick in authChart.yTicks"
+                                    :key="`y-${tick.label}`"
+                                    :x="CHART.left - 10"
+                                    :y="tick.y + 3.5"
+                                    text-anchor="end"
+                                >
+                                    {{ tick.label }}
+                                </text>
+                            </g>
+                            <g class="xAxis">
+                                <text
+                                    v-for="tick in authChart.xTicks"
+                                    :key="`x-${tick.label}`"
+                                    :x="tick.x"
+                                    :y="CHART.height - 8"
+                                    :text-anchor="tick.anchor"
+                                >
+                                    {{ tick.label }}
+                                </text>
+                            </g>
+                        </svg>
                     </div>
                 </div>
                 <div class="footer">
                     <div class="left">
-                        <span>授权数：18,148</span>
+                        <span>授权数：19,146</span>
                     </div>
                     <div class="right">
-                        <span>有效率 92%</span>
+                        <span class="countdownChip">倒计时 {{ authCountdown }}s</span>
                     </div>
                 </div>
             </div>
@@ -471,7 +656,6 @@ function notifyPurchase(name) {
     padding: 0 1%;
     width: 98%;
     height: 88%;
-    
     overflow-y: overlay;
     overflow-x: hidden;
     background-color: #efeeee;
@@ -609,7 +793,7 @@ function notifyPurchase(name) {
 }
 
 .container .mainContent .content .dealMsg .content {
-    margin: 3% auto 1%;
+    margin: 2% auto 1%;
     width: 96%;
     height: 65%;
     box-sizing: border-box;
@@ -626,7 +810,6 @@ function notifyPurchase(name) {
     /* border: 1px solid #000; */
     display: flex;
     flex-direction: row;
-    justify-content: center;
     align-items: center;
 }
 
@@ -678,14 +861,16 @@ function notifyPurchase(name) {
 }
 
 /* 依赖信息 */
-
-
 .container .mainContent .content .dealMsg .msg {
     width: 50%;
     height: 100%;
     border: 1px solid var(--app-border);
 }
-
+.container .mainContent .content .dealMsg .msg .content {
+    margin: 5px;
+    padding: 10px;
+    background-color: #fff;
+}
 .container .mainContent .content .dealMsg .msg .content table {
     width: 100%;
     height: 60%;
@@ -701,13 +886,13 @@ function notifyPurchase(name) {
 
 .container .mainContent .content .dealMsg .msg .content table td span {
     font-weight: normal;
-    color: #797777;
+    color: #7a7878;
 }
 
 .container .mainContent .content .msg .title .versionTag {
     float: right;
-    margin: 5px 5% 0 0;
-    padding: 5px 10px;
+    margin: 5px 8px;
+    padding: 5px 5px;
     display: flex;
     align-items: center;
     box-sizing: border-box;
@@ -1094,7 +1279,7 @@ function notifyPurchase(name) {
     width: auto;
     height: auto;
     margin: 0;
-    padding-bottom: 18px;
+    padding-bottom: 10px;
     overflow: hidden;
     border: 1px solid var(--app-border-quiet);
     border-radius: 10px;
@@ -1370,11 +1555,14 @@ function notifyPurchase(name) {
 }
 
 .container .mainContent .content .appMsg .title {
-    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    height: 46px;
     margin: 0;
     padding: 0 18px;
     border: none;
-    border-bottom: 1px solid #eef1f5;
     text-indent: 0;
 }
 
@@ -1383,6 +1571,46 @@ function notifyPurchase(name) {
     color: var(--app-text);
     font-size: 14px;
     font-weight: 500;
+}
+
+.container .mainContent .content .appMsg .title .titleMain {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.container .mainContent .content .appMsg .title .titleMain .el-icon {
+    color: #a06ee6;
+    font-size: 15px;
+}
+
+.periodChip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 24px;
+    padding: 0 7px;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    transition: filter 0.18s ease;
+}
+
+.periodChip:hover {
+    filter: brightness(0.96);
+}
+
+.periodChip.green {
+    color: #22b573;
+    background-color: color-mix(in srgb, #22b573 13%, var(--app-surface));
+}
+
+.periodChip.orange {
+    color: #e2a03f;
+    background-color: color-mix(in srgb, #f0a04b 16%, var(--app-surface));
 }
 
 .container .mainContent .content .appMsg .content {
@@ -1394,7 +1622,7 @@ function notifyPurchase(name) {
     width: auto;
     height: auto;
     margin: 0;
-    padding: 16px 22px;
+    padding: 8px 18px 2px;
     border: none;
     background-color: transparent;
 }
@@ -1421,160 +1649,111 @@ function notifyPurchase(name) {
     color: var(--app-primary);
 }
 
-.container .mainContent .content .trafficChart {
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    gap: 8px;
-    width: 100%;
-    height: clamp(150px, 15vw, 190px);
-}
-
-.container .mainContent .content .trafficCol {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    height: 100%;
-}
-
-.container .mainContent .content .trafficTrack {
+.container .mainContent .content .chartHost {
     position: relative;
-    flex: 1;
-    display: flex;
-    align-items: flex-end;
     width: 100%;
-    max-width: 26px;
-    border-radius: 5px;
-    background-color: #f1f4f9;
 }
 
-.container .mainContent .content .trafficFill {
+.container .mainContent .content .chartSvg {
+    display: block;
     width: 100%;
-    border-radius: 5px;
-    background: linear-gradient(180deg, #7faaf7, #4e88f3);
-    transition: height 0.4s ease, filter 0.18s ease, box-shadow 0.18s ease;
+    height: auto;
+    overflow: visible;
 }
 
-.container .mainContent .content .trafficTip {
+.container .mainContent .content .chartSvg .axisLine {
+    stroke: var(--app-surface-line);
+    stroke-width: 1;
+}
+
+.container .mainContent .content .chartSvg .lineStroke {
+    stroke: #5b9fe0;
+    stroke-width: 1.6;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+}
+
+.container .mainContent .content .chartSvg .authStroke {
+    stroke: #5ba8e8;
+    stroke-width: 1.8;
+}
+
+.container .mainContent .content .chartSvg .hoverLine {
+    stroke: #b9c0ca;
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+}
+
+.container .mainContent .content .chartSvg .dot {
+    fill: var(--app-surface);
+    stroke: #5b9fe0;
+    stroke-width: 1.6;
+}
+
+.container .mainContent .content .chartSvg .activeDot {
+    fill: #5b9fe0;
+    stroke: var(--app-surface);
+    stroke-width: 2;
+}
+
+.container .mainContent .content .chartSvg .yAxis text,
+.container .mainContent .content .chartSvg .xAxis text {
+    fill: var(--app-text-muted);
+    font-size: 11px;
+}
+
+.container .mainContent .content .chartTip {
     position: absolute;
     z-index: 3;
-    padding: 1px 8px;
-    color: #fff;
-    font-size: 11px;
-    line-height: 18px;
-    white-space: nowrap;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 116px;
+    padding: 9px 12px;
     border-radius: 6px;
-    background-color: var(--app-text);
-    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.24);
-    pointer-events: none;
-    transform: translate(-50%, -100%);
-}
-
-.container .mainContent .content .trafficCol {
-    cursor: crosshair;
-}
-
-.container .mainContent .content .trafficCol:hover .trafficFill {
-    filter: brightness(1.08);
-    box-shadow: 0 0 0 2px rgba(78, 136, 243, 0.18);
-}
-
-.container .mainContent .content .trafficCol span {
-    color: var(--app-text-muted);
-    font-size: 11px;
-}
-
-.container .mainContent .content .authWrap {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    gap: clamp(14px, 2vw, 26px);
-    width: 75%;
-    min-height: clamp(150px, 15vw, 190px);
-}
-
-.container .mainContent .content .authDonut {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: clamp(112px, 11vw, 140px);
-    height: clamp(112px, 11vw, 140px);
-    margin: 0;
-    border-radius: 50%;
-}
-
-.container .mainContent .content .authHole {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    width: 64%;
-    height: 64%;
-    border-radius: 50%;
     background-color: var(--app-surface);
+    box-shadow: 0 6px 18px rgba(31, 45, 61, 0.16);
+    pointer-events: none;
 }
 
-.container .mainContent .content .authHole strong {
-    color: var(--app-text);
-    font-size: 15px;
-}
-
-.container .mainContent .content .authHole span {
+.container .mainContent .content .chartTip .tipDate {
     color: var(--app-text-muted);
     font-size: 11px;
 }
 
-.container .mainContent .content .authLegend {
-    flex: 1;
-    min-width: 0;
-    margin: 0 0 0 20%;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 0;
-    list-style: none;
-}
-
-.container .mainContent .content .authLegend li {
-    padding: 3%;
+.container .mainContent .content .chartTip .tipRow {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    color: var(--app-text-secondary);
+    gap: 6px;
+    color: var(--app-text-soft);
     font-size: 12px;
-    border-radius: 5px;
 }
-.container .mainContent .content .authLegend li:hover {
-    background-color: #dbf5fa;
-}
-.container .mainContent .content .authLegend i {
-    width: 8px;
-    height: 8px;
+
+.container .mainContent .content .chartTip .tipRow i {
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
+    background-color: #5b9fe0;
 }
 
-.container .mainContent .content .authLegend i.blue {
-    background-color: var(--app-primary);
-}
-
-.container .mainContent .content .authLegend i.green {
-    background-color: #34c38f;
-}
-
-.container .mainContent .content .authLegend i.orange {
-    background-color: #f0a04b;
-}
-
-.container .mainContent .content .authLegend strong {
+.container .mainContent .content .chartTip .tipRow strong {
     margin-left: auto;
     color: var(--app-text);
-    font-weight: 500;
+    font-size: 13px;
+    font-weight: 600;
 }
+
+.container .mainContent .content .appMsg .footer .countdownChip {
+    display: inline-flex;
+    align-items: center;
+    height: 24px;
+    padding: 0 9px;
+    border-radius: 4px;
+    color: #22b573;
+    font-size: 12px;
+    background-color: color-mix(in srgb, #22b573 13%, var(--app-surface));
+}
+
 
 @media (max-width: 1200px) {
     .container .mainContent .content .sellMsg ul {
@@ -1620,17 +1799,6 @@ function notifyPurchase(name) {
 
     .container .mainContent .content .sayHai {
         padding: 14px;
-    }
-
-    .container .mainContent .content .authWrap {
-        flex-direction: column;
-        align-items: center;
-    }
-
-    .container .mainContent .content .authLegend {
-        flex: none;
-        width: min(100%, 320px);
-        margin: 0 auto;
     }
 }
 </style>

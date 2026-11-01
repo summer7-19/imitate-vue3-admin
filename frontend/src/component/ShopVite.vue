@@ -3,13 +3,14 @@ import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useUserProfile } from '@/composables/useUserProfile'
 import { useUserMenu } from '@/composables/useUserMenu'
-
+import { ShoppingCart } from '@element-plus/icons-vue'
 const { userStore, isLoggedIn, displayName, avatarText, roleLabel } = useUserProfile()
 const { handleCommand: handleUserCommand } = useUserMenu()
 
 const activeIndex = ref(0)
 const payFilter = ref('all')
 const cartCount = ref(0)
+const isCheckGood = ref(false)
 
 const list = ref([{
     name: '全部模板',
@@ -138,17 +139,24 @@ function formatPrice(price) {
     return price > 0 ? `$${price.toFixed(2)}` : '免费'
 }
 
-function buyTemplate(template) {
-    ElMessage.success(`已提交「${template.name}」的购买申请（演示）`)
-}
+// function buyTemplate(template) {
+//     ElMessage.success(`已提交「${template.name}」的购买申请（演示）`)
+// }
 
 function addToCart(template) {
     cartCount.value += 1
     ElMessage.success(`已将「${template.name}」加入购物车`)
 }
 
-function sendSuggestion() {
-    ElMessage.info('建议入口建设中，感谢你的反馈')
+// function sendSuggestion() {
+//     ElMessage.info('建议入口建设中，感谢你的反馈')
+// }
+
+function toPay(value) {
+
+    // pay的值
+
+    router.push('/pay')
 }
 </script>
 
@@ -159,8 +167,36 @@ function sendSuggestion() {
                 <span>Shop Vite模板市场</span>
             </div>
             <div class="right">
-                <span v-if="cartCount" class="cartTip">购物车 {{ cartCount }}</span>
-                <button @click="sendSuggestion">建议</button>
+                <el-dropdown trigger="click" placement="bottom-end" popper-class="my-cart-popper" :max-height="300"
+                    :teleported="false">
+                    <el-badge :value="cartCount" :hidden="cartCount === 0" class="cart-badge">
+                        <el-button :icon="ShoppingCart" circle />
+                    </el-badge>
+                    <template #dropdown>
+                        <el-dropdown-menu class="cart-dropdown-menu">
+                            <div v-if="!moudleList || moudleList.length === 0" class="empty-cart">
+                                购物车空空如也~
+                            </div>
+                            <el-dropdown-item v-for="item in moudleList" :key="item.id || item.name" :disabled="false">
+                                <div class="goods">
+                                    <div class="goods-left">
+                                        <!-- 2. 将 item.img 修正为 item.image_url -->
+                                        <img :src="item.image_url" alt="商品照片" />
+                                    </div>
+                                    <div class="goods-middle">
+                                        <p class="goods-title">{{ item.name }}</p>
+                                        <div class="goods-price">{{ item.price }}</div>
+                                    </div>
+                                    <div class="goods-right">
+                                        <el-button  id="payGood" size="small" @click.stop="toPay(item)">
+                                            去支付
+                                        </el-button>
+                                    </div>
+                                </div>
+                            </el-dropdown-item>
+                        </el-dropdown-menu>
+                    </template>
+                </el-dropdown>
                 <el-dropdown class="userDropdown" trigger="click" popper-class="user-dropdown-popper"
                     @command="handleUserCommand">
                     <button class="userInfo" type="button" title="账号菜单">
@@ -172,27 +208,37 @@ function sendSuggestion() {
                             <strong>{{ displayName }}</strong>
                             <span>{{ roleLabel }}</span>
                         </span>
-                        <el-icon class="userArrow"><ArrowDown /></el-icon>
+                        <el-icon class="userArrow">
+                            <ArrowDown />
+                        </el-icon>
                     </button>
                     <template #dropdown>
                         <el-dropdown-menu>
                             <el-dropdown-item v-if="isLoggedIn" command="profile">
-                                <el-icon><User /></el-icon>
+                                <el-icon>
+                                    <User />
+                                </el-icon>
                                 个人信息
                                 <span class="dropdownHint">/profile</span>
                             </el-dropdown-item>
                             <el-dropdown-item command="settings">
-                                <el-icon><Setting /></el-icon>
+                                <el-icon>
+                                    <Setting />
+                                </el-icon>
                                 系统设置
                                 <span class="dropdownHint">/settings</span>
                             </el-dropdown-item>
                             <el-dropdown-item v-if="!isLoggedIn" command="login">
-                                <el-icon><SwitchButton /></el-icon>
+                                <el-icon>
+                                    <SwitchButton />
+                                </el-icon>
                                 登录账号
                                 <span class="dropdownHint">/login</span>
                             </el-dropdown-item>
                             <el-dropdown-item v-if="isLoggedIn" command="logout" divided class="dangerItem">
-                                <el-icon><SwitchButton /></el-icon>
+                                <el-icon>
+                                    <SwitchButton />
+                                </el-icon>
                                 退出登录
                             </el-dropdown-item>
                         </el-dropdown-menu>
@@ -206,12 +252,8 @@ function sendSuggestion() {
                     模板分类
                 </div>
                 <ul>
-                    <li
-                        v-for="(value, index) in list"
-                        :key="value.name"
-                        :class="{ active: activeIndex === index }"
-                        @click="selectCategory(index)"
-                    >
+                    <li v-for="(value, index) in list" :key="value.name" :class="{ active: activeIndex === index }"
+                        @click="selectCategory(index)">
                         <span class="iconBox">
                             <svg viewBox="0 0 1024 1024" aria-hidden="true">
                                 <path :d="value.path"></path>
@@ -286,13 +328,151 @@ function sendSuggestion() {
 
 .shop .header .left {
     font-size: 20px;
-    color: #3b4046;
+    color: #6a6b6d;
 }
 
 .shop .header .right {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 25px;
+}
+
+.cart-badge :deep(.el-badge__content) {
+  top: 4px;
+  right: 4px;
+}
+
+/* 滚动容器高度限制 */
+:deep(.my-cart-popper .el-scrollbar__wrap) {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* 外层菜单容器：圆角、外边距、内边距与底色 */
+:deep(.my-cart-popper .el-dropdown-menu) {
+  min-width: 300px;
+  max-width: 360px;
+  padding: 8px;                    
+  background-color: #f3f4f7;       
+  display: flex;
+  flex-direction: column;
+  gap: 8px;               
+}
+
+/* 单个商品项：独立卡片式设计 */
+:deep(.my-cart-popper .el-dropdown-menu__item) {
+  padding: 10px 12px;
+  margin: 3px;
+  line-height: normal;
+  background-color: #ffffff;      
+  border-radius: 10px;            
+  border: 1px solid #ebeef5;      
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04); 
+  cursor: pointer;
+  transition: all 0.25s ease;     
+}
+
+:deep(.my-cart-popper .el-dropdown-menu__item:hover) {
+  background-color: #f5f7fa;
+}
+
+/* 购物车为空状态 */
+.empty-cart {
+  padding: 24px 16px;
+  text-align: center;
+  color: #909399;
+  font-size: 14px;
+}
+
+/* 商品卡片布局 */
+.goods {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 56px;
+  gap: 10px;
+}
+
+/* 左侧商品图 */
+.goods-left {
+  width: 56px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  background-color: #f2f3f5;
+  border: 1px solid #ebeef5;
+}
+
+.goods-left img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.goods-middle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.goods-title {
+  margin: 0;
+  font-size: 15px;
+  color: #202021;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.goods-price {
+  margin-top: 4px;
+  width: fit-content; 
+  padding: 2px 5px;         
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-align: center;
+  color: #ffffff;            
+  background-color: #f56c6c; 
+  border: 1px solid #e77777;
+  border-radius: 5px;
+}
+
+.goods-price::before {
+  content: '¥';
+  font-size: 12px;
+  margin-right: 2px;
+  font-weight: normal;
+}
+
+/* 右侧支付按钮区域 */
+.goods-right #payGood {
+    width:fit-content ;
+    border-radius: 5px;
+    font-size: 10px;
+    background-color: #fff6f6;
+}
+
+/* 关键修复：使用 :not(.el-button) 避免污染 Element Plus 的圆形图标按钮和去支付按钮 */
+.shop .header .right > button:not(.el-button) {
+  height: 30px;
+  padding: 0 16px;
+  border: 1px solid var(--app-border-strong);
+  border-radius: 8px;
+  color: #5e5d5d;
+  font-size: 14px;
+  background-color: var(--app-surface);
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.shop .header .right > button:not(.el-button):hover {
+  color: #4fc3f7;
+  border-color: #4fc3f7;
 }
 
 .shop .header .cartTip {
@@ -303,22 +483,6 @@ function sendSuggestion() {
     background-color: #e6fbef;
 }
 
-.shop .header .right button {
-    height: 30px;
-    padding: 0 16px;
-    border: 1px solid var(--app-border-strong);
-    border-radius: 8px;
-    color: #5e5d5d;
-    font-size: 14px;
-    background-color: var(--app-surface);
-    cursor: pointer;
-    transition: color 0.2s, border-color 0.2s;
-}
-
-.shop .header .right button:hover {
-    color: #4fc3f7;
-    border-color: #4fc3f7;
-}
 
 .shop .header .userDropdown {
     display: inline-flex;
@@ -404,14 +568,14 @@ function sendSuggestion() {
     overflow-y: auto;
     border-radius: 5px;
     background-color: var(--app-surface);
-    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+    box-shadow: 0 0 5px #c2bebe;
 }
 
 .shop .mainBox .sideList .sideListHeader {
     margin: 12px 14px;
     padding-bottom: 8px;
     border-bottom: 1px solid var(--app-border-light);
-    color: #a4a3a3;
+    color: #797676;
     font-size: 20px;
 }
 
@@ -657,6 +821,7 @@ function sendSuggestion() {
     border-radius: 0.2rem;
     color: #fff0f0;
     font-size: 11px;
+    border-radius: 5px;
     background-color: #65deeb;
     box-shadow: 0 0 4px #dedcdc;
     cursor: pointer;
@@ -664,6 +829,7 @@ function sendSuggestion() {
 }
 
 .shop .mainBox .mainContent .content ul li .bottom button.addCar {
+    margin-left: 5px;
     color: #5c6b3a;
     background-color: #e9f7cf;
 }

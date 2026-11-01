@@ -574,8 +574,9 @@ onBeforeUnmount(() => {
     flex: 0 0 auto;
     height: auto;
     padding: 0 0 10px;
-    font-size: 16px;
-    color: var(--app-text-title);
+    font-size: 13px;
+    color: #000;
+    font-weight: 550;
     border-bottom: 1px solid var(--app-border-light);
 }
 
@@ -586,7 +587,7 @@ onBeforeUnmount(() => {
     height: auto;
     min-height: 56px;
     padding: 10px 0;
-    line-height: 2.5;
+    line-height: 1.5;
     border-bottom: 1px solid var(--app-border-light);
     position: relative;
 }
@@ -594,7 +595,8 @@ onBeforeUnmount(() => {
 .svgShowData ul li .content .left {
     padding-top: 1%;
     width: 50%;
-    font-size: 16px;
+    font-size: 14px;
+    color: var(--app-text-title);
 }
 
 .svgShowData ul li .content .right {

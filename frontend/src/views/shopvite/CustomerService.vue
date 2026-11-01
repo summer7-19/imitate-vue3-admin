@@ -1,6 +1,5 @@
 <script setup>
 import { nextTick, onBeforeUnmount, ref } from 'vue'
-import Footer from '@/component/shopviteChoices/footer/footer.vue'
 
 const agents = [
     { name: '客服小云', avatar: '云', status: '在线', desc: '负责订单与售后咨询' },
@@ -136,7 +135,6 @@ onBeforeUnmount(() => {
                 </div>
             </section>
         </div>
-        <Footer />
     </div>
 </template>
 

@@ -105,12 +105,14 @@ const tagType = (type) => ({ 新增: 'success', 优化: 'primary', 修复: 'warn
             </article>
         </div>
         <el-empty v-if="!filteredLogs.length" description="该类型下暂无更新记录" :image-size="70" />
-        <Footer />
+        
     </div>
+    <Footer />
 </template>
 
 <style scoped>
 .page {
+    margin:0 0 0 20px;
     flex: 1;
     min-height: 0;
     overflow-y: auto;
@@ -177,7 +179,7 @@ const tagType = (type) => ({ 新增: 'success', 优化: 'primary', 修复: 'warn
     display: flex;
     flex-direction: column;
     gap: 18px;
-    max-width: 960px;
+    margin: 0 50px;
 }
 
 .logCard {

@@ -1,15 +1,13 @@
 <script setup>
-import { ref, computed, markRaw } from 'vue'
+import { ref, computed, markRaw, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { useSideBarContent } from '../../store/modules/sidebar'
+import { useUserStore } from '../../store/modules/user'
 import {
     House,
-    Monitor,
-    Box,
-    MagicStick,
     Document,
     Setting,
-    Reading,
     ShoppingBag,
     ChatDotRound,
     OfficeBuilding,
@@ -18,100 +16,95 @@ import {
     Odometer,
     Shop,
     VideoCamera,
-    Grid,
     Menu,
     DataAnalysis,
     Service,
     Expand,
     Fold,
     Close,
+    User,
+    UserFilled,
+    Lock,
+    Goods,
+    TrendCharts,
+    List,
+    ChatLineSquare,
+    Tickets,
+    Bell,
+    Money,
+    Box,
+    Picture,
+    FolderOpened,
+    CollectionTag,
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const route = useRoute()
 const store = useSideBarContent()
+const userStore = useUserStore()
+
+const isAdmin = computed(() => userStore.permissions.includes('admin'))
 
 const titleList = ref([
-    { title: '首页', icon: markRaw(House), route: 'ShopViteHomePage', drawer: true },
-    { title: '组件', icon: markRaw(Monitor), route: 'TableDemo', drawer: false },
-    { title: '其他', icon: markRaw(Box), route: 'Tiles', drawer: true },
-    { title: '操作', icon: markRaw(MagicStick), route: 'CreateCenter', drawer: true },
-    { title: '模板', icon: markRaw(Document), route: 'shop', drawer: false },
-    { title: '配置', icon: markRaw(Setting), route: 'IndependentLayout', drawer: true },
-    { title: '单栏', icon: markRaw(Reading), route: 'DataScreen', drawer: true },
-    { title: '商品', icon: markRaw(ShoppingBag), route: 'shop', drawer: false },
-    { title: 'GPT', icon: markRaw(ChatDotRound), route: 'CustomerService', drawer: true },
-    { title: '门户', icon: markRaw(OfficeBuilding), route: 'WorkBench', drawer: true },
-    { title: '外链', icon: markRaw(Link), route: 'job', drawer: false },
-    { title: '物料源', icon: markRaw(Coin), route: 'UpdateLog', drawer: true }
+    { title: '首页', icon: markRaw(House), route: 'ShopViteHomePage', drawer: true, group: 'default' },
+    { title: '配置', icon: markRaw(Setting), route: null, drawer: true, group: 'config', adminOnly: true },
+    { title: '商品', icon: markRaw(ShoppingBag), route: null, drawer: true, group: 'shop', adminOnly: true },
+    { title: '客服', icon: markRaw(ChatDotRound), route: 'CustomerService', drawer: true, group: 'default' },
+    { title: '门户', icon: markRaw(OfficeBuilding), route: 'WorkBench', drawer: true, group: 'default' },
+    { title: '外链', icon: markRaw(Link), route: 'shop', drawer: false, group: 'default' },
+    { title: '物料源', icon: markRaw(Coin), route: 'UpdateLog', drawer: true, group: 'default' }
 ])
 
-const itemList = ref([
-    {
-        title: '首页',
-        name: 'ShopViteHomePage',
-        icon: markRaw(House)
-    },
-    {
-        title: '看板',
-        name: 'Panel',
-        icon: markRaw(Odometer)
-    },
-    {
-        title: '创作中心',
-        name: 'CreateCenter',
-        icon: markRaw(Shop)
-    },
-    {
-        title: '实时监控',
-        name: 'RealTimeMonitor',
-        icon: markRaw(VideoCamera),
-        dot: '#10b981'
-    },
-    {
-        title: '磁贴',
-        name: 'Tiles',
-        icon: markRaw(Grid)
-    },
-    {
-        title: '独立布局',
-        name: 'IndependentLayout',
-        icon: markRaw(Menu)
-    },
-    {
-        title: '数据大屏',
-        name: 'DataScreen',
-        icon: markRaw(DataAnalysis),
-        badge: 'Hot',
-        badgeType: 'danger'
-    },
-    {
-        title: '工作台',
-        name: 'WorkBench',
-        icon: markRaw(Monitor)
-    },
-    {
-        title: '液态玻璃',
-        name: 'LiquidGlass',
-        icon: markRaw(MagicStick)
-    },
-    {
-        title: '客服端',
-        name: 'CustomerService',
-        icon: markRaw(Service),
-        dot: '#ef4444'
-    },
-    {
-        title: '更新日志',
-        name: 'UpdateLog',
-        icon: markRaw(Document),
-        badge: '99+',
-        badgeType: 'danger'
-    }
-])
+const defaultItems = [
+    { name: 'ShopViteHomePage', route: 'ShopViteHomePage', title: '首页', icon: markRaw(House) },
+    { name: 'Panel', route: 'Panel', title: '看板', icon: markRaw(Odometer) },
+    { name: 'CreateCenter', route: 'CreateCenter', title: '创作中心', icon: markRaw(Shop) },
+    { name: 'RealTimeMonitor', route: 'RealTimeMonitor', title: '实时监控', icon: markRaw(VideoCamera), dot: '#10b981' },
+    { name: 'DataScreen', route: 'DataScreen', title: '数据大屏', icon: markRaw(DataAnalysis), badge: 'Hot', badgeType: 'danger' },
+    { name: 'CustomerService', route: 'CustomerService', title: '客服端', icon: markRaw(Service), dot: '#ef4444' },
+    { name: 'UpdateLog', route: 'UpdateLog', title: '更新日志', icon: markRaw(Document), badge: '99+', badgeType: 'danger' }
+]
 
-const activeCategory = ref(0)
+const configItems = [
+    { name: 'ShopViteProfile', route: 'ShopViteProfile', title: '个人中心', icon: markRaw(User) },
+    { name: 'AdminUsers', route: 'AdminUsers', title: '用户管理', icon: markRaw(UserFilled) },
+    { name: 'AdminPermissions', route: 'AdminPermissions', title: '权限管理', icon: markRaw(Lock) },
+    { name: 'ShopViteSettings', route: 'ShopViteSettings', title: '系统设置', icon: markRaw(Setting) }
+]
+
+const shopItems = [
+    { name: 'AdminGoods', route: 'AdminGoods', title: '商品管理', icon: markRaw(Goods) },
+    { name: 'AdminGoodsStats', route: 'AdminGoodsStats', title: '商品统计', icon: markRaw(TrendCharts), dot: '#f56c6c' },
+    { name: 'AdminGoodsComments', route: 'AdminGoodsComments', title: '商品评论', icon: markRaw(ChatLineSquare) },
+    { name: 'AdminWorkOrders', route: 'AdminWorkOrders', title: '工单管理', icon: markRaw(Tickets) }
+]
+
+const CONFIG_ROUTES = configItems.map((item) => item.name)
+const SHOP_ROUTES = shopItems.map((item) => item.name)
+
+function groupOf(name) {
+    if (CONFIG_ROUTES.includes(name)) return 'config'
+    if (SHOP_ROUTES.includes(name)) return 'shop'
+    return 'default'
+}
+
+const initialGroup = groupOf(String(route.name))
+const activeCategory = ref(Math.max(0, titleList.value.findIndex((item) => item.group === initialGroup)))
+const activeGroup = ref(initialGroup)
 const hiddenText = ref(false)
+
+const visibleTitles = computed(() =>
+    titleList.value
+        .map((item, index) => ({ ...item, index }))
+        .filter((item) => !item.adminOnly || isAdmin.value)
+)
+
+const menuItems = computed(() => {
+    if (!isAdmin.value) return defaultItems
+    if (activeGroup.value === 'config') return configItems
+    if (activeGroup.value === 'shop') return shopItems
+    return defaultItems
+})
 
 const activeName = computed(() => String(route.name || 'ShopViteHomePage'))
 
@@ -119,18 +112,31 @@ function selectCategory(index) {
     activeCategory.value = index
     const target = titleList.value[index]
     if (!target) return
+    activeGroup.value = target.group
     if (target.route && route.name !== target.route) router.push({ name: target.route })
-    if (target.drawer) {
-        if (!store.isOpen) store.setState()
-    } else if (store.isOpen) {
-        store.setState()
-    }
+    if (target.drawer && !store.isOpen) store.setState()
 }
 
 function handleSelect(name) {
-    if (name !== route.name) router.push({ name })
-    if (store.isOpen) store.setState()
+    const item = menuItems.value.find((entry) => entry.name === name)
+    if (!item) return
+    if (!item.route) {
+        ElMessage.info(`「${item.title}」页面尚未接入`)
+        return
+    }
+    if (name !== route.name) router.push({ name: item.route })
 }
+
+watch(
+    () => route.name,
+    (name) => {
+        const group = groupOf(String(name))
+        if (group === 'default') return
+        activeGroup.value = group
+        const index = titleList.value.findIndex((item) => item.group === group)
+        if (index >= 0) activeCategory.value = index
+    }
+)
 </script>
 
 <template>
@@ -146,9 +152,9 @@ function handleSelect(name) {
             </button>
 
             <div class="railList">
-                <button v-for="(item, index) in titleList" :key="item.title" type="button" class="railItem"
-                    :class="{ active: activeCategory === index }" :title="item.title"
-                    @click="selectCategory(index)">
+                <button v-for="item in visibleTitles" :key="item.title" type="button" class="railItem"
+                    :class="{ active: activeCategory === item.index }" :title="item.title"
+                    @click="selectCategory(item.index)">
                     <el-icon :size="hiddenText ? 16 : 24">
                         <component :is="item.icon" />
                     </el-icon>
@@ -181,7 +187,7 @@ function handleSelect(name) {
                 </div>
                 <el-menu class="second-sidebar-menu" :default-active="activeName" background-color="transparent"
                     text-color="#606773" active-text-color="#4e88f3" @select="handleSelect">
-                    <el-menu-item v-for="item in itemList" :key="item.name" :index="item.name">
+                    <el-menu-item v-for="item in menuItems" :key="item.name" :index="item.name">
                         <el-icon>
                             <component :is="item.icon" />
                         </el-icon>
@@ -376,32 +382,35 @@ function handleSelect(name) {
 
 .logo-title {
     width: 100%;
-    height: 55px;
+    height: 64px;
     flex-shrink: 0;
-    font-size: 20px;
+    padding: 0 20px;
+    font-size: 19px;
     color: #7f7f7f;
     display: flex;
     align-items: center;
-    justify-content: center;
-    border: 1px solid var(--app-border-light);
+    justify-content: flex-start;
+    border-bottom: 1px solid var(--app-border-light);
 }
 
 .second-sidebar-menu {
     flex: 1;
     min-height: 0;
     width: 100%;
+    padding: 8px 0;
     border-right: none;
     overflow-y: auto;
 }
 
 .second-sidebar-menu :deep(.el-menu-item) {
-    margin: 10px auto;
-    height: 35px;
+    margin: 4px auto;
+    height: 44px;
     width: 92%;
-    padding: 0 10px !important;
+    padding: 0 14px !important;
+    gap: 10px;
     color: rgb(96, 103, 115);
-    font-size: 12px;
-    border-radius: 7px;
+    font-size: 13px;
+    border-radius: 9px;
     border: none;
     background: transparent;
     box-shadow: none;
@@ -421,19 +430,20 @@ function handleSelect(name) {
 }
 
 .second-sidebar-menu :deep(.el-menu-item .el-icon) {
-    font-size: 14px;
+    font-size: 17px;
 }
 
 .second-sidebar-menu :deep(.el-menu-item .title) {
-    margin-left: 8px;
+    flex: 1;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
 .dot {
     margin-left: auto;
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     flex-shrink: 0;
 }
@@ -453,6 +463,11 @@ function handleSelect(name) {
     .sideBar {
         width: 56px;
         min-width: 56px;
+    }
+
+    .second-sidebar-menu :deep(.el-menu-item) {
+        height: 40px;
+        font-size: 12px;
     }
 
     .sideBar .sideBarContent {
